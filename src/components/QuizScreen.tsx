@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Question, UserAnswer } from '../types/quiz';
+import { Question, UserAnswer, Language } from '../types/quiz';
 
 interface QuizScreenProps {
   questions: Question[];
@@ -7,25 +7,67 @@ interface QuizScreenProps {
   userAnswers: UserAnswer[];
   onAnswer: (answer: string) => void;
   onFinish: (lastAnswer?: string) => void;
+  language: Language;
 }
+
+const TRANSLATIONS = {
+  de: {
+    question: 'Frage',
+    of: 'von',
+    history: 'Historie',
+    yourAnswers: 'Deine Antworten',
+    noAnswersYet: 'Noch keine Antworten abgegeben',
+    noAnswer: '(keine Antwort)',
+    enterAnswer: 'Deine Antwort eingeben...',
+    lockAndContinue: '🔒 Antwort einlocken & Weiter',
+    submitAndFinish: '✅ Antwort abgeben & Quiz beenden',
+    cannotChange: 'Nach dem Einlocken kann die Antwort nicht mehr geändert werden!',
+    confirmEmpty: 'Möchtest du wirklich ohne Antwort fortfahren?',
+    confirmFinish: 'Möchtest du wirklich ohne Antwort abschließen?',
+    wikipediaVerified: 'Wikipedia verifiziert',
+    easy: 'Leicht',
+    medium: 'Mittel',
+    hard: 'Schwer'
+  },
+  en: {
+    question: 'Question',
+    of: 'of',
+    history: 'History',
+    yourAnswers: 'Your Answers',
+    noAnswersYet: 'No answers submitted yet',
+    noAnswer: '(no answer)',
+    enterAnswer: 'Enter your answer...',
+    lockAndContinue: '🔒 Lock Answer & Continue',
+    submitAndFinish: '✅ Submit Answer & Finish Quiz',
+    cannotChange: 'After locking, the answer cannot be changed!',
+    confirmEmpty: 'Do you really want to continue without an answer?',
+    confirmFinish: 'Do you really want to finish without an answer?',
+    wikipediaVerified: 'Wikipedia verified',
+    easy: 'Easy',
+    medium: 'Medium',
+    hard: 'Hard'
+  }
+};
 
 export function QuizScreen({ 
   questions, 
   currentIndex, 
   userAnswers, 
   onAnswer, 
-  onFinish 
+  onFinish,
+  language 
 }: QuizScreenProps) {
   const [currentAnswer, setCurrentAnswer] = useState('');
   const [showHistory, setShowHistory] = useState(false);
   
+  const t = TRANSLATIONS[language];
   const currentQuestion = questions[currentIndex];
   const isLastQuestion = currentIndex === questions.length - 1;
   const progress = ((currentIndex) / questions.length) * 100;
 
   const handleLockAnswer = () => {
     if (!currentAnswer.trim()) {
-      if (!confirm('Möchtest du wirklich ohne Antwort fortfahren?')) {
+      if (!confirm(t.confirmEmpty)) {
         return;
       }
     }
@@ -35,11 +77,10 @@ export function QuizScreen({
 
   const handleFinish = () => {
     if (!currentAnswer.trim()) {
-      if (!confirm('Möchtest du wirklich ohne Antwort abschließen?')) {
+      if (!confirm(t.confirmFinish)) {
         return;
       }
     }
-    // Letzte Antwort direkt an onFinish übergeben
     onFinish(currentAnswer.trim());
   };
 
@@ -54,9 +95,9 @@ export function QuizScreen({
 
   const getDifficultyLabel = (difficulty: string) => {
     switch (difficulty) {
-      case 'easy': return 'Leicht';
-      case 'medium': return 'Mittel';
-      case 'hard': return 'Schwer';
+      case 'easy': return t.easy;
+      case 'medium': return t.medium;
+      case 'hard': return t.hard;
       default: return difficulty;
     }
   };
@@ -67,15 +108,15 @@ export function QuizScreen({
       <div className="max-w-3xl mx-auto mb-6">
         <div className="flex items-center justify-between mb-4">
           <div className="text-white">
-            <span className="text-purple-300">Frage</span>{' '}
+            <span className="text-purple-300">{t.question}</span>{' '}
             <span className="text-2xl font-bold">{currentIndex + 1}</span>
-            <span className="text-purple-300"> von {questions.length}</span>
+            <span className="text-purple-300"> {t.of} {questions.length}</span>
           </div>
           <button
             onClick={() => setShowHistory(!showHistory)}
             className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-white text-sm transition-colors"
           >
-            📜 Historie {userAnswers.length > 0 && `(${userAnswers.length})`}
+            📜 {t.history} {userAnswers.length > 0 && `(${userAnswers.length})`}
           </button>
         </div>
         
@@ -116,7 +157,7 @@ export function QuizScreen({
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded-full text-xs transition-colors"
                 >
-                  📚 Wikipedia verifiziert
+                  📚 {t.wikipediaVerified}
                 </a>
               </div>
             )}
@@ -133,7 +174,7 @@ export function QuizScreen({
                     else handleLockAnswer();
                   }
                 }}
-                placeholder="Deine Antwort eingeben..."
+                placeholder={t.enterAnswer}
                 className="w-full px-5 py-4 bg-white/10 border-2 border-white/20 focus:border-purple-400 rounded-xl text-white text-lg placeholder-white/40 focus:outline-none transition-colors"
                 autoFocus
               />
@@ -144,20 +185,20 @@ export function QuizScreen({
                     onClick={handleFinish}
                     className="flex-1 py-4 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-bold text-lg rounded-xl transition-all transform hover:scale-105 shadow-lg"
                   >
-                    ✅ Antwort abgeben & Quiz beenden
+                    {t.submitAndFinish}
                   </button>
                 ) : (
                   <button
                     onClick={handleLockAnswer}
                     className="flex-1 py-4 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold text-lg rounded-xl transition-all transform hover:scale-105 shadow-lg"
                   >
-                    🔒 Antwort einlocken & Weiter
+                    {t.lockAndContinue}
                   </button>
                 )}
               </div>
 
               <p className="text-center text-purple-300/60 text-sm">
-                Nach dem Einlocken kann die Antwort nicht mehr geändert werden!
+                {t.cannotChange}
               </p>
             </div>
           </div>
@@ -167,12 +208,12 @@ export function QuizScreen({
         {showHistory && (
           <div className="w-80 bg-white/10 backdrop-blur-lg rounded-3xl p-4 border border-white/20 shadow-xl max-h-[calc(100vh-200px)] overflow-y-auto">
             <h3 className="text-lg font-bold text-white mb-4 sticky top-0 bg-white/10 -mx-4 px-4 py-2 -mt-4 backdrop-blur-lg">
-              📜 Deine Antworten
+              📜 {t.yourAnswers}
             </h3>
             
             {userAnswers.length === 0 ? (
               <p className="text-purple-300/70 text-sm text-center py-8">
-                Noch keine Antworten abgegeben
+                {t.noAnswersYet}
               </p>
             ) : (
               <div className="space-y-3">
@@ -192,7 +233,7 @@ export function QuizScreen({
                             {question?.question}
                           </p>
                           <p className="text-purple-300 text-sm font-medium truncate">
-                            ➤ {answer.answer || '(keine Antwort)'}
+                            ➤ {answer.answer || t.noAnswer}
                           </p>
                         </div>
                       </div>

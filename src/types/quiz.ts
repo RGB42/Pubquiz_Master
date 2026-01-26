@@ -1,8 +1,13 @@
+export type Language = 'de' | 'en';
+
 export interface QuizConfig {
   numCategories: number;
   questionsPerCategory: number;
   apiKey: string;
   model: string;
+  language: Language;
+  selectedCategories: string[];
+  customCategories: string[];
 }
 
 export interface Question {
@@ -39,6 +44,7 @@ export interface EvaluationResult {
   isCorrect: boolean;
   explanation: string;
   wikipediaUrl?: string;
+  manualOverride?: boolean;
 }
 
 export interface QuizResult {
@@ -48,7 +54,7 @@ export interface QuizResult {
   evaluations: EvaluationResult[];
 }
 
-export const CATEGORIES = [
+export const CATEGORIES_DE = [
   'Geschichte',
   'Geografie',
   'Wissenschaft',
@@ -61,4 +67,19 @@ export const CATEGORIES = [
   'Technologie',
   'Politik',
   'Essen & Trinken'
+];
+
+export const CATEGORIES_EN = [
+  'History',
+  'Geography',
+  'Science',
+  'Art & Culture',
+  'Sports',
+  'Music',
+  'Film & Television',
+  'Literature',
+  'Nature & Animals',
+  'Technology',
+  'Politics',
+  'Food & Drinks'
 ];

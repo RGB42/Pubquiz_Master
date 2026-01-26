@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { QuizConfig, Question, UserAnswer, QuizResult } from './types/quiz';
+import { QuizConfig, Question, UserAnswer, QuizResult, Language } from './types/quiz';
 import { generateQuestions, evaluateAnswers } from './services/api';
 import { SetupScreen } from './components/SetupScreen';
 import { LoadingScreen } from './components/LoadingScreen';
@@ -9,6 +9,25 @@ import { ErrorScreen } from './components/ErrorScreen';
 
 type AppState = 'setup' | 'generating' | 'playing' | 'evaluating' | 'finished' | 'error';
 
+const MESSAGES = {
+  de: {
+    generating: 'Fragen werden generiert...',
+    generatingSub: 'Die KI erstellt einzigartige Quizfragen für dich',
+    evaluating: 'Antworten werden ausgewertet...',
+    evaluatingSub: 'Die KI prüft deine Antworten',
+    noQuestions: 'Keine Fragen konnten generiert werden',
+    evaluationError: 'Fehler bei der Auswertung'
+  },
+  en: {
+    generating: 'Generating questions...',
+    generatingSub: 'The AI is creating unique quiz questions for you',
+    evaluating: 'Evaluating answers...',
+    evaluatingSub: 'The AI is checking your answers',
+    noQuestions: 'No questions could be generated',
+    evaluationError: 'Error during evaluation'
+  }
+};
+
 export function App() {
   const [state, setState] = useState<AppState>('setup');
   const [config, setConfig] = useState<QuizConfig | null>(null);
@@ -17,9 +36,13 @@ export function App() {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [result, setResult] = useState<QuizResult | null>(null);
   const [error, setError] = useState<string>('');
+  const [language, setLanguage] = useState<Language>('de');
+
+  const t = MESSAGES[language];
 
   const handleStart = useCallback(async (quizConfig: QuizConfig) => {
     setConfig(quizConfig);
+    setLanguage(quizConfig.language);
     setState('generating');
     setError('');
 
@@ -27,12 +50,13 @@ export function App() {
       const generatedQuestions = await generateQuestions(
         quizConfig.apiKey,
         quizConfig.model,
-        quizConfig.numCategories,
-        quizConfig.questionsPerCategory
+        quizConfig.selectedCategories,
+        quizConfig.questionsPerCategory,
+        quizConfig.language
       );
 
       if (generatedQuestions.length === 0) {
-        throw new Error('Keine Fragen konnten generiert werden');
+        throw new Error(MESSAGES[quizConfig.language].noQuestions);
       }
 
       setQuestions(generatedQuestions);
@@ -40,7 +64,7 @@ export function App() {
       setCurrentQuestionIndex(0);
       setState('playing');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unbekannter Fehler');
+      setError(err instanceof Error ? err.message : 'Unknown error');
       setState('error');
     }
   }, []);
@@ -80,6 +104,10 @@ export function App() {
     }
   }, [config, handleStart, handleRestart]);
 
+  const handleUpdateResult = useCallback((updatedResult: QuizResult) => {
+    setResult(updatedResult);
+  }, []);
+
   switch (state) {
     case 'setup':
       return <SetupScreen onStart={handleStart} />;
@@ -87,8 +115,8 @@ export function App() {
     case 'generating':
       return (
         <LoadingScreen
-          message="Fragen werden generiert..."
-          subMessage="Die KI erstellt einzigartige Quizfragen für dich"
+          message={t.generating}
+          subMessage={t.generatingSub}
         />
       );
 
@@ -99,8 +127,8 @@ export function App() {
           currentIndex={currentQuestionIndex}
           userAnswers={userAnswers}
           onAnswer={handleAnswer}
+          language={language}
           onFinish={(lastAnswer?: string) => {
-            // Die letzte Antwort wird direkt übergeben
             if (lastAnswer !== undefined && config) {
               const currentQuestion = questions[currentQuestionIndex];
               const finalAnswers = [
@@ -114,7 +142,7 @@ export function App() {
               
               setState('evaluating');
               
-              evaluateAnswers(config.apiKey, config.model, questions, finalAnswers)
+              evaluateAnswers(config.apiKey, config.model, questions, finalAnswers, config.language)
                 .then(evaluations => {
                   const correctCount = evaluations.filter(e => e.isCorrect).length;
                   setResult({
@@ -126,7 +154,7 @@ export function App() {
                   setState('finished');
                 })
                 .catch(err => {
-                  setError(err instanceof Error ? err.message : 'Fehler bei der Auswertung');
+                  setError(err instanceof Error ? err.message : t.evaluationError);
                   setState('error');
                 });
             }
@@ -137,14 +165,19 @@ export function App() {
     case 'evaluating':
       return (
         <LoadingScreen
-          message="Antworten werden ausgewertet..."
-          subMessage="Die KI prüft deine Antworten"
+          message={t.evaluating}
+          subMessage={t.evaluatingSub}
         />
       );
 
     case 'finished':
       return result ? (
-        <ResultsScreen result={result} onRestart={handleRestart} />
+        <ResultsScreen 
+          result={result} 
+          onRestart={handleRestart} 
+          language={language}
+          onUpdateResult={handleUpdateResult}
+        />
       ) : null;
 
     case 'error':
@@ -153,6 +186,7 @@ export function App() {
           error={error}
           onRetry={handleRetry}
           onBack={handleRestart}
+          language={language}
         />
       );
 
