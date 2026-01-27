@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { QuizConfig, Question, UserAnswer, QuizResult, Language } from './types/quiz';
 import { generateQuestions, evaluateAnswers } from './services/api';
 import { SetupScreen } from './components/SetupScreen';
@@ -6,6 +6,10 @@ import { LoadingScreen } from './components/LoadingScreen';
 import { QuizScreen } from './components/QuizScreen';
 import { ResultsScreen } from './components/ResultsScreen';
 import { ErrorScreen } from './components/ErrorScreen';
+import { CookieConsent } from './components/CookieConsent';
+import { AdBanner } from './components/AdBanner';
+import { Footer } from './components/Footer';
+import { PrivacyPage, ImprintPage } from './components/LegalPages';
 
 type AppState = 'setup' | 'generating' | 'playing' | 'evaluating' | 'finished' | 'error';
 
@@ -28,6 +32,42 @@ const MESSAGES = {
   }
 };
 
+// Prüfen ob Werbung angezeigt werden soll basierend auf URL
+function shouldShowAds(): boolean {
+  const params = new URLSearchParams(window.location.search);
+  
+  // ?toll=true -> keine Werbung (geheimer Parameter)
+  if (params.get('toll') === 'true') {
+    return false;
+  }
+  
+  // Standard: Werbung anzeigen
+  return true;
+}
+
+// Cookie-Einstellungen aus localStorage laden
+function getCookieSettings(): { accepted: boolean; analytics: boolean; ads: boolean } | null {
+  try {
+    const stored = localStorage.getItem('pubquiz_cookie_consent');
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (e) {
+    // Ignore
+  }
+  return null;
+}
+
+// Cookie-Einstellungen speichern
+function saveCookieSettings(analytics: boolean, ads: boolean): void {
+  localStorage.setItem('pubquiz_cookie_consent', JSON.stringify({
+    accepted: true,
+    analytics,
+    ads,
+    timestamp: new Date().toISOString()
+  }));
+}
+
 export function App() {
   const [state, setState] = useState<AppState>('setup');
   const [config, setConfig] = useState<QuizConfig | null>(null);
@@ -36,9 +76,67 @@ export function App() {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [result, setResult] = useState<QuizResult | null>(null);
   const [error, setError] = useState<string>('');
-  const [language, setLanguage] = useState<Language>('de');
+  const [language, setLanguage] = useState<Language>(() => {
+    return (localStorage.getItem('pubquiz_language') as Language) || 'de';
+  });
+  
+  // Ads & Cookie State
+  const [showAds] = useState<boolean>(shouldShowAds);
+  const [cookieSettings, setCookieSettings] = useState<{ accepted: boolean; analytics: boolean; ads: boolean } | null>(getCookieSettings);
+  const [showCookieConsent, setShowCookieConsent] = useState<boolean>(false);
+  const [adsEnabled, setAdsEnabled] = useState<boolean>(false);
+  
+  // Legal Pages
+  const [showPrivacy, setShowPrivacy] = useState(false);
+  const [showImprint, setShowImprint] = useState(false);
 
   const t = MESSAGES[language];
+
+  // Cookie-Consent beim Start anzeigen wenn nötig (NUR bei Werbevariante)
+  useEffect(() => {
+    // Bei der "tollen" Variante keine Cookie-Abfrage
+    if (!showAds) {
+      return;
+    }
+    
+    if (!cookieSettings?.accepted) {
+      setShowCookieConsent(true);
+    }
+    if (cookieSettings?.ads) {
+      setAdsEnabled(true);
+    }
+  }, [showAds, cookieSettings]);
+
+  // AdSense Script laden wenn Ads aktiviert
+  useEffect(() => {
+    if (adsEnabled && showAds) {
+      // AdSense Script dynamisch laden
+      const existingScript = document.querySelector('script[src*="adsbygoogle"]');
+      if (!existingScript) {
+        const script = document.createElement('script');
+        script.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3292688178679342'; // Ersetze mit deiner Publisher ID
+        script.async = true;
+        script.crossOrigin = 'anonymous';
+        document.head.appendChild(script);
+      }
+    }
+  }, [adsEnabled, showAds]);
+
+  const handleCookieAccept = useCallback((analytics: boolean, ads: boolean) => {
+    saveCookieSettings(analytics, ads);
+    setCookieSettings({ accepted: true, analytics, ads });
+    setShowCookieConsent(false);
+    if (ads) {
+      setAdsEnabled(true);
+    }
+  }, []);
+
+  const handleCookieDecline = useCallback(() => {
+    saveCookieSettings(false, false);
+    setCookieSettings({ accepted: true, analytics: false, ads: false });
+    setShowCookieConsent(false);
+    setAdsEnabled(false);
+  }, []);
 
   const handleStart = useCallback(async (quizConfig: QuizConfig) => {
     setConfig(quizConfig);
@@ -108,89 +206,171 @@ export function App() {
     setResult(updatedResult);
   }, []);
 
-  switch (state) {
-    case 'setup':
-      return <SetupScreen onStart={handleStart} />;
+  // Haupt-Content rendern
+  const renderContent = () => {
+    switch (state) {
+      case 'setup':
+        return <SetupScreen onStart={handleStart} />;
 
-    case 'generating':
-      return (
-        <LoadingScreen
-          message={t.generating}
-          subMessage={t.generatingSub}
-        />
-      );
+      case 'generating':
+        return (
+          <LoadingScreen
+            message={t.generating}
+            subMessage={t.generatingSub}
+          />
+        );
 
-    case 'playing':
-      return (
-        <QuizScreen
-          questions={questions}
-          currentIndex={currentQuestionIndex}
-          userAnswers={userAnswers}
-          onAnswer={handleAnswer}
-          language={language}
-          onFinish={(lastAnswer?: string) => {
-            if (lastAnswer !== undefined && config) {
-              const currentQuestion = questions[currentQuestionIndex];
-              const finalAnswers = [
-                ...userAnswers,
-                {
-                  questionId: currentQuestion.id,
-                  answer: lastAnswer,
-                  lockedAt: new Date()
-                }
-              ];
-              
-              setState('evaluating');
-              
-              evaluateAnswers(config.apiKey, config.model, questions, finalAnswers, config.language)
-                .then(evaluations => {
-                  const correctCount = evaluations.filter(e => e.isCorrect).length;
-                  setResult({
-                    totalQuestions: questions.length,
-                    correctAnswers: correctCount,
-                    score: Math.round((correctCount / questions.length) * 100),
-                    evaluations
+      case 'playing':
+        return (
+          <QuizScreen
+            questions={questions}
+            currentIndex={currentQuestionIndex}
+            userAnswers={userAnswers}
+            onAnswer={handleAnswer}
+            language={language}
+            onFinish={(lastAnswer?: string) => {
+              if (lastAnswer !== undefined && config) {
+                const currentQuestion = questions[currentQuestionIndex];
+                const finalAnswers = [
+                  ...userAnswers,
+                  {
+                    questionId: currentQuestion.id,
+                    answer: lastAnswer,
+                    lockedAt: new Date()
+                  }
+                ];
+                
+                setState('evaluating');
+                
+                evaluateAnswers(config.apiKey, config.model, questions, finalAnswers, config.language)
+                  .then(evaluations => {
+                    const correctCount = evaluations.filter(e => e.isCorrect).length;
+                    setResult({
+                      totalQuestions: questions.length,
+                      correctAnswers: correctCount,
+                      score: Math.round((correctCount / questions.length) * 100),
+                      evaluations
+                    });
+                    setState('finished');
+                  })
+                  .catch(err => {
+                    setError(err instanceof Error ? err.message : t.evaluationError);
+                    setState('error');
                   });
-                  setState('finished');
-                })
-                .catch(err => {
-                  setError(err instanceof Error ? err.message : t.evaluationError);
-                  setState('error');
-                });
-            }
-          }}
-        />
-      );
+              }
+            }}
+          />
+        );
 
-    case 'evaluating':
-      return (
-        <LoadingScreen
-          message={t.evaluating}
-          subMessage={t.evaluatingSub}
-        />
-      );
+      case 'evaluating':
+        return (
+          <LoadingScreen
+            message={t.evaluating}
+            subMessage={t.evaluatingSub}
+          />
+        );
 
-    case 'finished':
-      return result ? (
-        <ResultsScreen 
-          result={result} 
-          onRestart={handleRestart} 
+      case 'finished':
+        return result ? (
+          <ResultsScreen 
+            result={result} 
+            onRestart={handleRestart} 
+            language={language}
+            onUpdateResult={handleUpdateResult}
+          />
+        ) : null;
+
+      case 'error':
+        return (
+          <ErrorScreen
+            error={error}
+            onRetry={handleRetry}
+            onBack={handleRestart}
+            language={language}
+          />
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  // Premium Header für die "tolle" Variante
+  const renderPremiumHeader = () => {
+    if (showAds) return null;
+    
+    return (
+      <div className="bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-black">
+        <div className="max-w-4xl mx-auto px-4 py-2 flex items-center justify-center gap-3">
+          <span className="text-2xl">⭐</span>
+          <span className="font-bold text-lg tracking-wide">
+            {language === 'de' ? 'PREMIUM EDITION' : 'PREMIUM EDITION'}
+          </span>
+          <span className="text-2xl">⭐</span>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className={`min-h-screen pb-16 ${!showAds ? 'premium-mode' : ''}`}>
+      {/* Premium Header für werbefreie Version */}
+      {renderPremiumHeader()}
+      
+      {/* Top Ad Banner */}
+      {adsEnabled && showAds && state === 'setup' && (
+        <div className="w-full max-w-4xl mx-auto px-4 pt-4">
+          <AdBanner adSlot="1234567890" adFormat="horizontal" className="h-24" />
+        </div>
+      )}
+
+      {/* Main Content */}
+      {renderContent()}
+
+      {/* Side Ads auf größeren Bildschirmen */}
+      {adsEnabled && showAds && state === 'playing' && (
+        <>
+          <div className="hidden xl:block fixed left-4 top-1/2 -translate-y-1/2 w-40">
+            <AdBanner adSlot="1234567891" adFormat="vertical" className="h-96" />
+          </div>
+          <div className="hidden xl:block fixed right-4 top-1/2 -translate-y-1/2 w-40">
+            <AdBanner adSlot="1234567892" adFormat="vertical" className="h-96" />
+          </div>
+        </>
+      )}
+
+      {/* Bottom Ad vor Results */}
+      {adsEnabled && showAds && state === 'finished' && (
+        <div className="w-full max-w-4xl mx-auto px-4 pb-4">
+          <AdBanner adSlot="1234567893" adFormat="horizontal" className="h-24" />
+        </div>
+      )}
+
+      {/* Footer mit rechtlichen Links */}
+      <Footer
+        language={language}
+        showAds={showAds}
+        onPrivacyClick={() => setShowPrivacy(true)}
+        onImprintClick={() => setShowImprint(true)}
+        onCookieSettingsClick={() => setShowCookieConsent(true)}
+      />
+
+      {/* Cookie Consent Banner */}
+      {showCookieConsent && showAds && (
+        <CookieConsent
           language={language}
-          onUpdateResult={handleUpdateResult}
+          onAccept={handleCookieAccept}
+          onDecline={handleCookieDecline}
         />
-      ) : null;
+      )}
 
-    case 'error':
-      return (
-        <ErrorScreen
-          error={error}
-          onRetry={handleRetry}
-          onBack={handleRestart}
-          language={language}
-        />
-      );
-
-    default:
-      return null;
-  }
+      {/* Legal Pages */}
+      {showPrivacy && (
+        <PrivacyPage language={language} onClose={() => setShowPrivacy(false)} />
+      )}
+      {showImprint && (
+        <ImprintPage language={language} onClose={() => setShowImprint(false)} />
+      )}
+    </div>
+  );
 }

@@ -88,3 +88,42 @@ input[type="range"]::-moz-range-track {
   background: rgba(255, 255, 255, 0.2);
   border-radius: 3px;
 }
+
+/* Premium Mode Styles */
+.premium-mode {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  min-height: 100vh;
+}
+
+.premium-mode::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    radial-gradient(circle at 20% 20%, rgba(251, 191, 36, 0.1) 0%, transparent 40%),
+    radial-gradient(circle at 80% 80%, rgba(251, 191, 36, 0.08) 0%, transparent 40%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.premium-mode > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Golden glow effect for premium */
+@keyframes golden-pulse {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(251, 191, 36, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(251, 191, 36, 0.5);
+  }
+}
+
+.premium-glow {
+  animation: golden-pulse 3s ease-in-out infinite;
+}
