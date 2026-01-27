@@ -313,7 +313,7 @@ export function App() {
   };
 
   return (
-    <div className={`min-h-screen pb-16 ${!showAds ? 'premium-mode' : ''}`}>
+    <div className={`min-h-screen flex flex-col ${!showAds ? 'premium-mode' : ''}`}>
       {/* Premium Header für werbefreie Version */}
       {renderPremiumHeader()}
       
@@ -325,7 +325,9 @@ export function App() {
       )}
 
       {/* Main Content */}
-      {renderContent()}
+      <main className="flex-1">
+        {renderContent()}
+      </main>
 
       {/* Side Ads auf größeren Bildschirmen */}
       {adsEnabled && showAds && state === 'playing' && (

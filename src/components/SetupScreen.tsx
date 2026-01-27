@@ -441,10 +441,6 @@ export function SetupScreen({ onStart }: SetupScreenProps) {
         <p className="text-center text-purple-300/70 text-sm mt-6">
           {t.footer}
         </p>
-        
-        <p className="text-center text-purple-300/50 text-xs mt-2">
-          v1.3.0
-        </p>
       </div>
     </div>
   );
