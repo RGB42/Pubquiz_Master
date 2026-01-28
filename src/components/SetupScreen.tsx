@@ -3,6 +3,7 @@ import { QuizConfig, Language, CATEGORIES_DE, CATEGORIES_EN } from '../types/qui
 
 interface SetupScreenProps {
   onStart: (config: QuizConfig) => void;
+  onBack?: () => void;
 }
 
 const DEFAULT_MODEL = 'tngtech/deepseek-r1t2-chimera:free';
@@ -80,7 +81,7 @@ const TRANSLATIONS = {
   }
 };
 
-export function SetupScreen({ onStart }: SetupScreenProps) {
+export function SetupScreen({ onStart, onBack }: SetupScreenProps) {
   const [language, setLanguage] = useState<Language>('de');
   const [numCategories, setNumCategories] = useState(3);
   const [questionsPerCategory, setQuestionsPerCategory] = useState(3);
@@ -210,8 +211,16 @@ export function SetupScreen({ onStart }: SetupScreenProps) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center p-4">
-      <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-8 max-w-2xl w-full shadow-2xl border border-white/20">
+      <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-8 max-w-2xl w-full shadow-2xl border border-white/20 relative">
         <div className="text-center mb-8">
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="absolute top-4 left-4 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-white text-sm transition-colors flex items-center gap-2"
+            >
+              ← {language === 'de' ? 'Zurück' : 'Back'}
+            </button>
+          )}
           <div className="text-6xl mb-4">🎯</div>
           <h1 className="text-4xl font-bold text-white mb-2">{t.title}</h1>
           <p className="text-purple-200">{t.subtitle}</p>

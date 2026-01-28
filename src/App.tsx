@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { QuizConfig, Question, UserAnswer, QuizResult, Language } from './types/quiz';
 import { generateQuestions, evaluateAnswers } from './services/api';
+import { LandingPage } from './components/LandingPage';
 import { SetupScreen } from './components/SetupScreen';
 import { LoadingScreen } from './components/LoadingScreen';
 import { QuizScreen } from './components/QuizScreen';
@@ -11,7 +12,7 @@ import { AdBanner } from './components/AdBanner';
 import { Footer } from './components/Footer';
 import { PrivacyPage, ImprintPage } from './components/LegalPages';
 
-type AppState = 'setup' | 'generating' | 'playing' | 'evaluating' | 'finished' | 'error';
+type AppState = 'landing' | 'setup' | 'generating' | 'playing' | 'evaluating' | 'finished' | 'error';
 
 const MESSAGES = {
   de: {
@@ -69,7 +70,7 @@ function saveCookieSettings(analytics: boolean, ads: boolean): void {
 }
 
 export function App() {
-  const [state, setState] = useState<AppState>('setup');
+  const [state, setState] = useState<AppState>('landing');
   const [config, setConfig] = useState<QuizConfig | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [userAnswers, setUserAnswers] = useState<UserAnswer[]>([]);
@@ -209,8 +210,16 @@ export function App() {
   // Haupt-Content rendern
   const renderContent = () => {
     switch (state) {
+      case 'landing':
+        return (
+          <LandingPage
+            language={language}
+            onStartQuiz={() => setState('setup')}
+          />
+        );
+      
       case 'setup':
-        return <SetupScreen onStart={handleStart} />;
+        return <SetupScreen onStart={handleStart} onBack={() => setState('landing')} />;
 
       case 'generating':
         return (
