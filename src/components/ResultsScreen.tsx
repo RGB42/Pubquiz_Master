@@ -169,7 +169,7 @@ export function ResultsScreen({ result, onRestart, language, onUpdateResult }: R
         </div>
         
         <p className="text-center text-purple-300/50 text-xs mt-6">
-          v1.8.0
+          v2.3.0
         </p>
       </div>
     </div>

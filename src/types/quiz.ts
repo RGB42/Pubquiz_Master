@@ -1,4 +1,5 @@
 export type Language = 'de' | 'en';
+export type Difficulty = 'easy' | 'medium' | 'hard' | 'mixed';
 
 export interface QuizConfig {
   numCategories: number;
@@ -8,6 +9,7 @@ export interface QuizConfig {
   language: Language;
   selectedCategories: string[];
   customCategories: string[];
+  difficulty: Difficulty;
 }
 
 export interface Question {

@@ -151,7 +151,8 @@ export function App() {
         quizConfig.model,
         quizConfig.selectedCategories,
         quizConfig.questionsPerCategory,
-        quizConfig.language
+        quizConfig.language,
+        quizConfig.difficulty
       );
 
       if (generatedQuestions.length === 0) {

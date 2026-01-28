@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { QuizConfig, Language, CATEGORIES_DE, CATEGORIES_EN } from '../types/quiz';
+import { QuizConfig, Language, Difficulty, CATEGORIES_DE, CATEGORIES_EN } from '../types/quiz';
+import { getArticleCount, clearUsedArticles, getUsedArticles } from '../services/articleHistory';
 
 interface SetupScreenProps {
   onStart: (config: QuizConfig) => void;
@@ -13,7 +14,10 @@ const STORAGE_KEYS = {
   model: 'pubquiz_model',
   language: 'pubquiz_language',
   selectedCategories: 'pubquiz_selected_categories',
-  customCategories: 'pubquiz_custom_categories'
+  customCategories: 'pubquiz_custom_categories',
+  numCategories: 'pubquiz_num_categories',
+  questionsPerCategory: 'pubquiz_questions_per_category',
+  difficulty: 'pubquiz_difficulty'
 };
 
 const TRANSLATIONS = {
@@ -46,7 +50,25 @@ const TRANSLATIONS = {
     categories: 'Kategorien',
     apiKeyRequired: 'Bitte gib deinen OpenRouter API Key ein!',
     modelRequired: 'Bitte gib ein Modell ein!',
-    notEnoughCategories: 'Bitte wähle genug Kategorien aus!'
+    notEnoughCategories: 'Bitte wähle genug Kategorien aus!',
+    difficulty: 'Schwierigkeitsgrad',
+    difficultyEasy: 'Leicht',
+    difficultyMedium: 'Mittel',
+    difficultyHard: 'Schwer',
+    difficultyMixed: 'Gemischt',
+    difficultyEasyDesc: 'Einfache Fragen für Einsteiger',
+    difficultyMediumDesc: 'Mittelschwere Fragen für Fortgeschrittene',
+    difficultyHardDesc: 'Knifflige Fragen für Experten',
+    difficultyMixedDesc: 'Mix aus allen Schwierigkeitsgraden',
+    articleHistory: 'Fragenhistorie',
+    articleHistoryInfo: 'Bereits gestellte Themen',
+    clearHistory: 'Historie löschen',
+    clearHistoryConfirm: 'Möchtest du die Fragenhistorie löschen? Dadurch können bereits gestellte Themen wieder vorkommen.',
+    historyCleared: 'Historie gelöscht!',
+    showHistory: 'Historie anzeigen',
+    hideHistory: 'Historie ausblenden',
+    noHistory: 'Es wurden noch keine Themen abgefragt.',
+    historyNote: 'Eigene Kategorien werden nicht getrackt, um Wiederholungen zu ermöglichen.'
   },
   en: {
     title: 'PubQuiz Master',
@@ -77,7 +99,25 @@ const TRANSLATIONS = {
     categories: 'categories',
     apiKeyRequired: 'Please enter your OpenRouter API Key!',
     modelRequired: 'Please enter a model!',
-    notEnoughCategories: 'Please select enough categories!'
+    notEnoughCategories: 'Please select enough categories!',
+    difficulty: 'Difficulty Level',
+    difficultyEasy: 'Easy',
+    difficultyMedium: 'Medium',
+    difficultyHard: 'Hard',
+    difficultyMixed: 'Mixed',
+    difficultyEasyDesc: 'Simple questions for beginners',
+    difficultyMediumDesc: 'Medium questions for intermediate players',
+    difficultyHardDesc: 'Tricky questions for experts',
+    difficultyMixedDesc: 'Mix of all difficulty levels',
+    articleHistory: 'Question History',
+    articleHistoryInfo: 'Already asked topics',
+    clearHistory: 'Clear History',
+    clearHistoryConfirm: 'Do you want to delete the question history? This allows previously asked topics to appear again.',
+    historyCleared: 'History cleared!',
+    showHistory: 'Show History',
+    hideHistory: 'Hide History',
+    noHistory: 'No topics have been asked yet.',
+    historyNote: 'Custom categories are not tracked to allow repeated use.'
   }
 };
 
@@ -92,9 +132,17 @@ export function SetupScreen({ onStart, onBack }: SetupScreenProps) {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [customCategories, setCustomCategories] = useState<string[]>([]);
   const [newCustomCategory, setNewCustomCategory] = useState('');
+  const [difficulty, setDifficulty] = useState<Difficulty>('mixed');
+  const [showHistoryPanel, setShowHistoryPanel] = useState(false);
+  const [articleCount, setArticleCount] = useState(0);
 
   const t = TRANSLATIONS[language];
   const categories = language === 'de' ? CATEGORIES_DE : CATEGORIES_EN;
+
+  // Lade Artikelanzahl
+  useEffect(() => {
+    setArticleCount(getArticleCount());
+  }, []);
 
   // Lade gespeicherte Werte beim Start
   useEffect(() => {
@@ -103,10 +151,20 @@ export function SetupScreen({ onStart, onBack }: SetupScreenProps) {
     const savedLanguage = localStorage.getItem(STORAGE_KEYS.language) as Language;
     const savedSelectedCategories = localStorage.getItem(STORAGE_KEYS.selectedCategories);
     const savedCustomCategories = localStorage.getItem(STORAGE_KEYS.customCategories);
+    const savedNumCategories = localStorage.getItem(STORAGE_KEYS.numCategories);
+    const savedQuestionsPerCategory = localStorage.getItem(STORAGE_KEYS.questionsPerCategory);
 
     if (savedApiKey) setApiKey(savedApiKey);
     if (savedModel) setModel(savedModel);
     if (savedLanguage) setLanguage(savedLanguage);
+    if (savedNumCategories) setNumCategories(parseInt(savedNumCategories));
+    if (savedQuestionsPerCategory) setQuestionsPerCategory(parseInt(savedQuestionsPerCategory));
+    
+    const savedDifficulty = localStorage.getItem(STORAGE_KEYS.difficulty) as Difficulty;
+    if (savedDifficulty && ['easy', 'medium', 'hard', 'mixed'].includes(savedDifficulty)) {
+      setDifficulty(savedDifficulty);
+    }
+    
     if (savedSelectedCategories) {
       try {
         setSelectedCategories(JSON.parse(savedSelectedCategories));
@@ -203,7 +261,8 @@ export function SetupScreen({ onStart, onBack }: SetupScreenProps) {
       model: model.trim(),
       language,
       selectedCategories: selectedCategories.slice(0, numCategories),
-      customCategories
+      customCategories,
+      difficulty
     });
   };
 
@@ -325,7 +384,11 @@ export function SetupScreen({ onStart, onBack }: SetupScreenProps) {
               min="1"
               max="6"
               value={numCategories}
-              onChange={(e) => setNumCategories(parseInt(e.target.value))}
+              onChange={(e) => {
+                const value = parseInt(e.target.value);
+                setNumCategories(value);
+                localStorage.setItem(STORAGE_KEYS.numCategories, value.toString());
+              }}
               className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-purple-500"
             />
             <div className="flex justify-between text-purple-300 text-xs mt-1">
@@ -412,12 +475,51 @@ export function SetupScreen({ onStart, onBack }: SetupScreenProps) {
               min="1"
               max="5"
               value={questionsPerCategory}
-              onChange={(e) => setQuestionsPerCategory(parseInt(e.target.value))}
+              onChange={(e) => {
+                const value = parseInt(e.target.value);
+                setQuestionsPerCategory(value);
+                localStorage.setItem(STORAGE_KEYS.questionsPerCategory, value.toString());
+              }}
               className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-purple-500"
             />
             <div className="flex justify-between text-purple-300 text-xs mt-1">
               <span>1</span>
               <span>5</span>
+            </div>
+          </div>
+
+          {/* Schwierigkeitsgrad */}
+          <div>
+            <label className="text-white font-medium block mb-3">{t.difficulty}</label>
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { value: 'easy' as Difficulty, label: t.difficultyEasy, desc: t.difficultyEasyDesc, icon: '🟢', color: 'green' },
+                { value: 'medium' as Difficulty, label: t.difficultyMedium, desc: t.difficultyMediumDesc, icon: '🟡', color: 'yellow' },
+                { value: 'hard' as Difficulty, label: t.difficultyHard, desc: t.difficultyHardDesc, icon: '🔴', color: 'red' },
+                { value: 'mixed' as Difficulty, label: t.difficultyMixed, desc: t.difficultyMixedDesc, icon: '🎲', color: 'purple' }
+              ].map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => {
+                    setDifficulty(option.value);
+                    localStorage.setItem(STORAGE_KEYS.difficulty, option.value);
+                  }}
+                  className={`p-4 rounded-xl text-left transition-all border-2 ${
+                    difficulty === option.value
+                      ? option.color === 'green' ? 'bg-green-500/20 border-green-500 ring-2 ring-green-400/50'
+                      : option.color === 'yellow' ? 'bg-yellow-500/20 border-yellow-500 ring-2 ring-yellow-400/50'
+                      : option.color === 'red' ? 'bg-red-500/20 border-red-500 ring-2 ring-red-400/50'
+                      : 'bg-purple-500/20 border-purple-500 ring-2 ring-purple-400/50'
+                      : 'bg-white/5 border-white/20 hover:bg-white/10'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xl">{option.icon}</span>
+                    <span className="font-bold text-white">{option.label}</span>
+                  </div>
+                  <p className="text-xs text-purple-300">{option.desc}</p>
+                </button>
+              ))}
             </div>
           </div>
 
@@ -431,6 +533,67 @@ export function SetupScreen({ onStart, onBack }: SetupScreenProps) {
               <span>{t.estimatedTime}:</span>
               <span className="font-bold text-white">~{Math.ceil(totalQuestions * 1.5)} {t.minutes}</span>
             </div>
+          </div>
+
+          {/* Artikelhistorie */}
+          <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <span className="text-white font-medium">📚 {t.articleHistory}</span>
+                <span className="px-2 py-0.5 bg-purple-500/30 text-purple-200 text-xs rounded-full">
+                  {articleCount} {t.articleHistoryInfo}
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowHistoryPanel(!showHistoryPanel)}
+                  className="px-3 py-1 bg-white/10 hover:bg-white/20 text-purple-200 text-sm rounded-lg transition-colors"
+                >
+                  {showHistoryPanel ? t.hideHistory : t.showHistory}
+                </button>
+                {articleCount > 0 && (
+                  <button
+                    onClick={() => {
+                      if (confirm(t.clearHistoryConfirm)) {
+                        clearUsedArticles();
+                        setArticleCount(0);
+                        alert(t.historyCleared);
+                      }
+                    }}
+                    className="px-3 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-300 text-sm rounded-lg transition-colors"
+                  >
+                    🗑️ {t.clearHistory}
+                  </button>
+                )}
+              </div>
+            </div>
+            
+            {showHistoryPanel && (
+              <div className="mt-3 pt-3 border-t border-white/10">
+                {articleCount === 0 ? (
+                  <p className="text-purple-300/70 text-sm text-center py-4">
+                    {t.noHistory}
+                  </p>
+                ) : (
+                  <div className="max-h-48 overflow-y-auto space-y-2">
+                    {getUsedArticles().slice(-30).reverse().map((article, i) => (
+                      <div key={i} className="flex items-center justify-between bg-white/5 rounded-lg px-3 py-2 text-sm">
+                        <div className="flex-1 min-w-0">
+                          <span className="text-white truncate block">{article.topic.replace(/_/g, ' ')}</span>
+                          <span className="text-purple-400 text-xs">{article.category}</span>
+                        </div>
+                        <span className="text-purple-300/50 text-xs ml-2 shrink-0">
+                          {new Date(article.usedAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <p className="text-purple-300/50 text-xs mt-3 text-center">
+                  ℹ️ {t.historyNote}
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Start Button */}
