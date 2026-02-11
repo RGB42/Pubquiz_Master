@@ -147,6 +147,11 @@ export function App() {
     setError('');
 
     try {
+      // Expertenmodus-Konfiguration erstellen wenn nötig
+      const expertConfig = quizConfig.apiProvider === 'expert' && quizConfig.expertMode
+        ? quizConfig.expertMode
+        : undefined;
+
       const generatedQuestions = await generateQuestions(
         quizConfig.apiKey,
         quizConfig.model,
@@ -155,7 +160,8 @@ export function App() {
         quizConfig.language,
         quizConfig.difficulty,
         [],
-        quizConfig.apiProvider
+        quizConfig.apiProvider,
+        expertConfig
       );
 
       if (generatedQuestions.length === 0) {

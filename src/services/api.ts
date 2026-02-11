@@ -1,4 +1,4 @@
-import { Question, UserAnswer, EvaluationResult, Language, Difficulty, ApiProvider, API_PROVIDERS, CATEGORIES_DE, CATEGORIES_EN } from '../types/quiz';
+import { Question, UserAnswer, EvaluationResult, Language, Difficulty, ApiProvider, API_PROVIDERS, CATEGORIES_DE, CATEGORIES_EN, ExpertModeConfig } from '../types/quiz';
 import { getUsedArticlesForCategory, addUsedArticles, shouldIgnoreHistory, UsedArticle } from './articleHistory';
 
 // API URLs werden jetzt aus API_PROVIDERS geladen
@@ -59,6 +59,88 @@ function getWikipediaBaseUrl(language: Language): string {
     : 'https://en.wikipedia.org/wiki/';
 }
 
+// Hilfsfunktion für Retry mit Backoff
+async function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Google AI API-Aufruf mit Retry-Logik
+async function callGoogleAI(
+  apiKey: string,
+  model: string,
+  prompt: string,
+  temperature: number = 0.7,
+  maxTokens: number = 2000,
+  retryCount: number = 0
+): Promise<string> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      contents: [
+        {
+          parts: [
+            { text: prompt }
+          ]
+        }
+      ],
+      generationConfig: {
+        temperature: temperature,
+        maxOutputTokens: maxTokens,
+      }
+    })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const errorMessage = errorData.error?.message || `Google AI API Error: ${response.status}`;
+    
+    // Prüfe auf Quota/Rate-Limit Fehler
+    const isQuotaError = errorMessage.toLowerCase().includes('quota') || 
+                         errorMessage.toLowerCase().includes('rate') ||
+                         errorMessage.toLowerCase().includes('limit') ||
+                         response.status === 429 ||
+                         response.status === 403;
+    
+    // Extrahiere Retry-Zeit aus der Fehlermeldung (z.B. "Please retry in 45.951677899s")
+    const retryMatch = errorMessage.match(/retry in (\d+(?:\.\d+)?)/i);
+    const retryAfterSeconds = retryMatch ? Math.ceil(parseFloat(retryMatch[1])) : null;
+    
+    if (isQuotaError && retryCount < 2 && retryAfterSeconds && retryAfterSeconds <= 60) {
+      // Warte die angegebene Zeit + 2 Sekunden Puffer und versuche erneut
+      console.log(`⏳ Google AI Quota-Limit erreicht. Warte ${retryAfterSeconds + 2} Sekunden...`);
+      await sleep((retryAfterSeconds + 2) * 1000);
+      return callGoogleAI(apiKey, model, prompt, temperature, maxTokens, retryCount + 1);
+    }
+    
+    // Erstelle benutzerfreundliche Fehlermeldung
+    let userFriendlyMessage = errorMessage;
+    if (isQuotaError) {
+      userFriendlyMessage = `🚫 Google AI Quota überschritten!\n\n` +
+        `Dein kostenloses Kontingent bei Google AI ist aufgebraucht.\n\n` +
+        `Lösungen:\n` +
+        `1. Warte einige Minuten und versuche es erneut\n` +
+        `2. Verwende einen anderen Provider (z.B. Groq)\n` +
+        `3. Aktiviere die Abrechnung in Google AI Studio\n\n` +
+        `Technische Details: ${errorMessage}`;
+    }
+    
+    const error = new Error(userFriendlyMessage);
+    (error as any).rawResponse = JSON.stringify(errorData, null, 2);
+    (error as any).statusCode = response.status;
+    (error as any).isQuotaError = isQuotaError;
+    (error as any).retryAfterSeconds = retryAfterSeconds;
+    throw error;
+  }
+
+  const data = await response.json();
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+}
+
 // API-Aufruf-Funktion die alle Provider unterstützt
 async function callLLMApi(
   apiKey: string,
@@ -68,6 +150,16 @@ async function callLLMApi(
   temperature: number = 0.7,
   maxTokens: number = 2000
 ): Promise<string> {
+  // Google AI hat ein eigenes API-Format
+  if (provider === 'google') {
+    return callGoogleAI(apiKey, model, prompt, temperature, maxTokens);
+  }
+  
+  // Expertenmodus sollte nicht direkt hier ankommen
+  if (provider === 'expert') {
+    throw new Error('Expert mode should use dedicated expert functions');
+  }
+  
   const providerConfig = API_PROVIDERS[provider];
   
   // Anthropic hat ein anderes API-Format
@@ -146,6 +238,218 @@ async function callLLMApi(
   return data.choices?.[0]?.message?.content || '';
 }
 
+// Expertenmodus: Recherche mit Groq (kostenlos)
+async function expertResearchFacts(
+  groqApiKey: string,
+  researchModel: string,
+  category: string,
+  count: number,
+  language: Language
+): Promise<string[]> {
+  const prompt = language === 'de'
+    ? `Du bist ein Recherche-Experte. Suche ${count * 3} harte, überprüfbare Fakten zum Thema "${category}".
+
+WICHTIGE REGELN:
+- Jeder Fakt muss spezifisch und eindeutig sein
+- Nenne Zahlen, Daten, Namen, Orte - konkrete Details
+- Jeder Fakt sollte sich für eine Quiz-Frage eignen
+- Die Fakten müssen 100% korrekt und auf Wikipedia verifizierbar sein
+- Variiere die Fakten - nicht alle zum selben Unterthema
+
+Format:
+1. [Konkreter Fakt mit Details]
+2. [Konkreter Fakt mit Details]
+...
+
+Antworte NUR mit der nummerierten Liste, kein anderer Text.`
+    : `You are a research expert. Find ${count * 3} hard, verifiable facts about "${category}".
+
+IMPORTANT RULES:
+- Each fact must be specific and unambiguous
+- Include numbers, dates, names, places - concrete details
+- Each fact should be suitable for a quiz question
+- Facts must be 100% correct and verifiable on Wikipedia
+- Vary the facts - not all about the same subtopic
+
+Format:
+1. [Concrete fact with details]
+2. [Concrete fact with details]
+...
+
+Respond ONLY with the numbered list, no other text.`;
+
+  // Verwende Groq API statt Google AI
+  const content = await callLLMApi(groqApiKey, researchModel, prompt, 'groq', 0.7, 2000);
+  
+  // Parse die Fakten aus der Antwort
+  const lines = content.split('\n').filter(line => line.trim());
+  const facts = lines
+    .map(line => line.replace(/^\d+\.\s*/, '').trim())
+    .filter(fact => fact.length > 10);
+  
+  return facts;
+}
+
+// Expertenmodus: Quiz-Generierung mit Groq
+async function expertGenerateFromFacts(
+  groqApiKey: string,
+  generationModel: string,
+  _category: string, // Unused but kept for API consistency
+  facts: string[],
+  count: number,
+  language: Language,
+  difficulty: Difficulty
+): Promise<any[]> {
+  const difficultyText = language === 'de'
+    ? difficulty === 'easy' ? 'leicht' : difficulty === 'hard' ? 'schwer' : 'mittel'
+    : difficulty === 'easy' ? 'easy' : difficulty === 'hard' ? 'hard' : 'medium';
+
+  const prompt = language === 'de'
+    ? `Du bist ein Quiz-Experte. Erstelle ${count} Quiz-Fragen aus den folgenden recherchierten Fakten.
+
+FAKTEN:
+${facts.map((f, i) => `${i + 1}. ${f}`).join('\n')}
+
+AUFGABE:
+- Erstelle ${count} einzigartige Quiz-Fragen aus diesen Fakten
+- Schwierigkeitsgrad: ${difficultyText}
+- JEDE Frage darf nur EINE eindeutige Antwort haben
+- Denke Schritt für Schritt nach, bevor du die Frage formulierst:
+  1. Welcher Fakt eignet sich für eine gute Frage?
+  2. Was ist die eindeutige Antwort?
+  3. Wie formuliere ich die Frage präzise?
+
+CHAIN-OF-THOUGHT Beispiel:
+- Fakt: "Der Eiffelturm ist 330 Meter hoch und steht in Paris."
+- Gedanke: Die Höhe ist ein gutes Quiz-Element. Die Frage sollte nach der Höhe fragen.
+- Frage: "Wie hoch ist der Eiffelturm?" → Antwort: "330 Meter"
+
+Antworte NUR mit validem JSON:
+{
+  "questions": [
+    {
+      "question": "Die Frage",
+      "correctAnswer": "Die Antwort",
+      "alternativeAnswers": ["Alternative1"],
+      "difficulty": "${difficultyText}",
+      "wikipediaTopic": "Wikipedia_Artikel"
+    }
+  ]
+}`
+    : `You are a quiz expert. Create ${count} quiz questions from the following researched facts.
+
+FACTS:
+${facts.map((f, i) => `${i + 1}. ${f}`).join('\n')}
+
+TASK:
+- Create ${count} unique quiz questions from these facts
+- Difficulty level: ${difficultyText}
+- EACH question must have only ONE unambiguous answer
+- Think step by step before formulating the question:
+  1. Which fact is suitable for a good question?
+  2. What is the unique answer?
+  3. How do I formulate the question precisely?
+
+CHAIN-OF-THOUGHT Example:
+- Fact: "The Eiffel Tower is 330 meters tall and stands in Paris."
+- Thought: The height is a good quiz element. The question should ask about the height.
+- Question: "How tall is the Eiffel Tower?" → Answer: "330 meters"
+
+Respond ONLY with valid JSON:
+{
+  "questions": [
+    {
+      "question": "The question",
+      "correctAnswer": "The answer",
+      "alternativeAnswers": ["Alternative1"],
+      "difficulty": "${difficultyText}",
+      "wikipediaTopic": "Wikipedia_Article"
+    }
+  ]
+}`;
+
+  const content = await callLLMApi(groqApiKey, generationModel, prompt, 'groq', 0.3, 2000);
+  
+  const jsonMatch = content.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    throw new Error('No valid JSON from quiz generation');
+  }
+  
+  const parsed = JSON.parse(jsonMatch[0]);
+  return parsed.questions || [];
+}
+
+// Expertenmodus: Kompletter Flow
+async function generateQuestionsExpertMode(
+  expertConfig: ExpertModeConfig,
+  categoryName: string,
+  count: number,
+  language: Language,
+  difficulty: Difficulty,
+  existingQuestions: string[],
+  usedArticles: string[]
+): Promise<Question[]> {
+  console.log(`🏆 Expert Mode: Generating ${count} questions for "${categoryName}"`);
+  
+  // Schritt 1: Recherche mit Google Gemini
+  console.log('🔍 Step 1: Researching facts with Gemini...');
+  const facts = await expertResearchFacts(
+    expertConfig.researchApiKey,
+    expertConfig.researchModel,
+    categoryName,
+    count,
+    language
+  );
+  console.log(`📚 Found ${facts.length} facts`);
+  
+  // Filtere bereits verwendete Themen
+  const filteredFacts = facts.filter(fact => {
+    const lowerFact = fact.toLowerCase();
+    return !usedArticles.some(article => 
+      lowerFact.includes(article.toLowerCase()) || 
+      article.toLowerCase().includes(lowerFact.substring(0, 20))
+    ) && !existingQuestions.some(q => 
+      lowerFact.includes(q.toLowerCase().substring(0, 30))
+    );
+  });
+  
+  // Schritt 2: Quiz-Generierung mit Groq
+  console.log('🧠 Step 2: Generating questions with Groq...');
+  const rawQuestions = await expertGenerateFromFacts(
+    expertConfig.generationApiKey,
+    expertConfig.generationModel,
+    categoryName,
+    filteredFacts.slice(0, count * 2), // Mehr Fakten für bessere Auswahl
+    count,
+    language,
+    difficulty
+  );
+  console.log(`✅ Generated ${rawQuestions.length} questions`);
+  
+  // Schritt 3: Fragen formatieren
+  const questions: Question[] = [];
+  for (const q of rawQuestions.slice(0, count)) {
+    const wikipediaUrl = language === 'de'
+      ? `https://de.wikipedia.org/wiki/${encodeURIComponent((q.wikipediaTopic || q.correctAnswer).replace(/ /g, '_'))}`
+      : `https://en.wikipedia.org/wiki/${encodeURIComponent((q.wikipediaTopic || q.correctAnswer).replace(/ /g, '_'))}`;
+    
+    questions.push({
+      id: crypto.randomUUID(),
+      category: categoryName,
+      question: q.question,
+      correctAnswer: q.correctAnswer,
+      alternativeAnswers: q.alternativeAnswers || [],
+      wikipediaSource: wikipediaUrl,
+      sourceType: 'wikipedia',
+      sourceName: 'Wikipedia',
+      difficulty: (q.difficulty || difficulty) as 'easy' | 'medium' | 'hard',
+      questionType: 'text' as const
+    });
+  }
+  
+  return questions;
+}
+
 export async function generateQuestions(
   apiKey: string,
   model: string,
@@ -154,7 +458,8 @@ export async function generateQuestions(
   language: Language,
   difficulty: Difficulty = 'mixed',
   existingQuestions: string[] = [],
-  provider: ApiProvider = 'openrouter'
+  provider: ApiProvider = 'openrouter',
+  expertConfig?: ExpertModeConfig
 ): Promise<Question[]> {
   const allQuestions: Question[] = [];
   const newUsedArticles: UsedArticle[] = [];
@@ -170,18 +475,34 @@ export async function generateQuestions(
     // Hole bereits verwendete Artikel für diese Kategorie
     const usedArticles = ignoreHistory ? [] : getUsedArticlesForCategory(category);
     
-    const questions = await generateCategoryQuestions(
-      apiKey,
-      model,
-      category,
-      questionsPerCategory,
-      language,
-      difficulty,
-      existingQuestions,
-      usedArticles,
-      ignoreHistory,
-      provider
-    );
+    let questions: Question[];
+    
+    // Expertenmodus: Verwende den Zwei-Stufen-Prozess
+    if (provider === 'expert' && expertConfig) {
+      questions = await generateQuestionsExpertMode(
+        expertConfig,
+        category,
+        questionsPerCategory,
+        language,
+        difficulty,
+        existingQuestions,
+        usedArticles
+      );
+    } else {
+      // Normaler Modus
+      questions = await generateCategoryQuestions(
+        apiKey,
+        model,
+        category,
+        questionsPerCategory,
+        language,
+        difficulty,
+        existingQuestions,
+        usedArticles,
+        ignoreHistory,
+        provider
+      );
+    }
     
     // Sammle verwendete Artikel für das Speichern
     for (const q of questions) {

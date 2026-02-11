@@ -1,6 +1,48 @@
 import { useState } from 'react';
 import { QuizResult, EvaluationResult, Language } from '../types/quiz';
 
+// Image component with error handling
+function ImageWithFallback({ src, alt, language }: { src: string; alt: string; language: Language }) {
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  if (error) {
+    return (
+      <div className="mb-4 rounded-lg overflow-hidden bg-red-500/10 border border-red-500/30 p-4 text-center">
+        <div className="text-red-400 text-2xl mb-2">⚠️</div>
+        <p className="text-red-300 text-sm font-medium">
+          {language === 'de' ? 'Bild konnte nicht geladen werden' : 'Image could not be loaded'}
+        </p>
+        <p className="text-red-300/70 text-xs mt-1">{error}</p>
+        <p className="text-white/40 text-xs mt-2 break-all">URL: {src}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-4 rounded-lg overflow-hidden bg-white/5">
+      {loading && (
+        <div className="p-4 text-center">
+          <div className="text-purple-400 text-2xl mb-2 animate-pulse">🖼️</div>
+          <p className="text-purple-300 text-sm">
+            {language === 'de' ? 'Bild wird geladen...' : 'Loading image...'}
+          </p>
+        </div>
+      )}
+      <img 
+        src={src} 
+        alt={alt} 
+        className={`w-full max-h-48 object-contain ${loading ? 'hidden' : ''}`}
+        onLoad={() => setLoading(false)}
+        onError={() => {
+          setLoading(false);
+          setError(language === 'de' ? 'Netzwerkfehler oder ungültige URL' : 'Network error or invalid URL');
+        }}
+      />
+    </div>
+  );
+}
+
 interface ResultsScreenProps {
   result: QuizResult;
   onRestart: () => void;
@@ -169,7 +211,7 @@ export function ResultsScreen({ result, onRestart, language, onUpdateResult }: R
         </div>
         
         <p className="text-center text-purple-300/50 text-xs mt-6">
-          v3.2.0
+          v3.3.0
         </p>
       </div>
     </div>
@@ -333,14 +375,11 @@ function EvaluationCard({ evaluation, index, language, onUpdate }: EvaluationCar
           
           {/* Image if present */}
           {evaluation.imageUrl && (
-            <div className="mb-4 rounded-lg overflow-hidden bg-white/5">
-              <img 
-                src={evaluation.imageUrl} 
-                alt="Quiz image" 
-                className="w-full max-h-48 object-contain"
-                loading="lazy"
-              />
-            </div>
+            <ImageWithFallback 
+              src={evaluation.imageUrl} 
+              alt="Quiz image"
+              language={language}
+            />
           )}
           
           <p className="text-white font-medium mb-3">{evaluation.question}</p>

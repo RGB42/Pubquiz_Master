@@ -59,6 +59,8 @@ export function QuizScreen({
 }: QuizScreenProps) {
   const [currentAnswer, setCurrentAnswer] = useState('');
   const [showHistory, setShowHistory] = useState(false);
+  const [imageError, setImageError] = useState<{[key: string]: string}>({});
+  const [imageLoading, setImageLoading] = useState<{[key: string]: boolean}>({});
   
   const t = TRANSLATIONS[language];
   const currentQuestion = questions[currentIndex];
@@ -144,17 +146,63 @@ export function QuizScreen({
             </div>
 
             {/* Image for image questions */}
-            {currentQuestion.questionType === 'image' && currentQuestion.imageUrl && (
+            {currentQuestion.questionType === 'image' && (
               <div className="mb-6 rounded-xl overflow-hidden bg-white/5 border border-white/10">
-                <img 
-                  src={currentQuestion.imageUrl} 
-                  alt={currentQuestion.imageAlt || 'Quiz image'} 
-                  className="w-full max-h-80 object-contain mx-auto"
-                  loading="lazy"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none';
-                  }}
-                />
+                {!currentQuestion.imageUrl ? (
+                  <div className="p-6 text-center">
+                    <div className="text-red-400 text-4xl mb-2">🖼️❌</div>
+                    <p className="text-red-300 font-medium">
+                      {language === 'de' ? 'Kein Bild verfügbar' : 'No image available'}
+                    </p>
+                    <p className="text-red-300/70 text-sm mt-1">
+                      {language === 'de' 
+                        ? 'Die KI hat kein Bild-URL angegeben' 
+                        : 'The AI did not provide an image URL'}
+                    </p>
+                  </div>
+                ) : imageError[currentQuestion.id] ? (
+                  <div className="p-6 text-center">
+                    <div className="text-red-400 text-4xl mb-2">⚠️</div>
+                    <p className="text-red-300 font-medium">
+                      {language === 'de' ? 'Bild konnte nicht geladen werden' : 'Image could not be loaded'}
+                    </p>
+                    <p className="text-red-300/70 text-sm mt-1 break-all">
+                      {imageError[currentQuestion.id]}
+                    </p>
+                    <div className="mt-3 p-2 bg-black/30 rounded-lg">
+                      <p className="text-white/50 text-xs break-all">
+                        URL: {currentQuestion.imageUrl}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {imageLoading[currentQuestion.id] && (
+                      <div className="p-6 text-center">
+                        <div className="text-purple-400 text-4xl mb-2 animate-pulse">🖼️</div>
+                        <p className="text-purple-300">
+                          {language === 'de' ? 'Bild wird geladen...' : 'Loading image...'}
+                        </p>
+                      </div>
+                    )}
+                    <img 
+                      src={currentQuestion.imageUrl} 
+                      alt={currentQuestion.imageAlt || 'Quiz image'} 
+                      className={`w-full max-h-80 object-contain mx-auto ${imageLoading[currentQuestion.id] ? 'hidden' : ''}`}
+                      onLoad={() => {
+                        setImageLoading(prev => ({...prev, [currentQuestion.id]: false}));
+                      }}
+                      onError={(e) => {
+                        const img = e.target as HTMLImageElement;
+                        setImageLoading(prev => ({...prev, [currentQuestion.id]: false}));
+                        setImageError(prev => ({
+                          ...prev, 
+                          [currentQuestion.id]: `HTTP ${img.naturalWidth === 0 ? 'Fehler' : 'OK'} - ${language === 'de' ? 'Bild konnte nicht geladen werden' : 'Image failed to load'}`
+                        }));
+                      }}
+                    />
+                  </>
+                )}
               </div>
             )}
 

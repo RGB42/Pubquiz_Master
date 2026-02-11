@@ -1,6 +1,14 @@
 export type Language = 'de' | 'en';
 export type Difficulty = 'easy' | 'medium' | 'hard' | 'mixed';
-export type ApiProvider = 'openrouter' | 'groq' | 'nvidia' | 'openai' | 'anthropic';
+export type ApiProvider = 'openrouter' | 'groq' | 'nvidia' | 'openai' | 'anthropic' | 'google' | 'expert';
+
+// Expertenmodus: Kombiniert zwei APIs
+export interface ExpertModeConfig {
+  researchApiKey: string; // Google Gemini für Recherche
+  generationApiKey: string; // Groq für Quiz-Generierung
+  researchModel: string;
+  generationModel: string;
+}
 
 export interface ApiConfig {
   provider: ApiProvider;
@@ -18,6 +26,8 @@ export interface QuizConfig {
   selectedCategories: string[];
   customCategories: string[];
   difficulty: Difficulty;
+  // Für Expertenmodus
+  expertMode?: ExpertModeConfig;
 }
 
 // Provider-spezifische Informationen
@@ -92,6 +102,32 @@ export const API_PROVIDERS: Record<ApiProvider, {
       { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet' },
       { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku' },
       { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus' },
+    ]
+  },
+  google: {
+    name: 'Google AI',
+    url: 'https://generativelanguage.googleapis.com/v1beta/models',
+    docsUrl: 'https://aistudio.google.com',
+    keyPrefix: 'AIza',
+    defaultModel: 'gemini-2.0-flash',
+    models: [
+      { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', free: true },
+      { id: 'gemini-2.0-flash-lite', name: 'Gemini 2.0 Flash Lite', free: true },
+      { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', free: true },
+      { id: 'gemini-1.5-flash-8b', name: 'Gemini 1.5 Flash 8B', free: true },
+      { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro' },
+    ]
+  },
+  expert: {
+    name: 'Expertenmodus',
+    url: '', // Verwendet Groq API für beide Modelle
+    docsUrl: 'https://console.groq.com',
+    keyPrefix: 'gsk_',
+    defaultModel: 'llama-3.3-70b-versatile + llama-3.3-70b-versatile',
+    models: [
+      { id: 'llama-3.3-70b-versatile + llama-3.3-70b-versatile', name: 'Llama 3.3 70B (Recherche + Generierung)', free: true },
+      { id: 'llama-3.3-70b-versatile + mixtral-8x7b-32768', name: 'Llama 3.3 70B + Mixtral 8x7B', free: true },
+      { id: 'mixtral-8x7b-32768 + llama-3.3-70b-versatile', name: 'Mixtral 8x7B + Llama 3.3 70B', free: true },
     ]
   }
 };

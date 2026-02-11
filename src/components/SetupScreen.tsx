@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { QuizConfig, Language, Difficulty, ApiProvider, API_PROVIDERS, CATEGORIES_DE, CATEGORIES_EN } from '../types/quiz';
 import { getArticleCount, clearUsedArticles, getUsedArticles } from '../services/articleHistory';
+import { ProviderIcon } from './ProviderIcons';
 
 interface SetupScreenProps {
   onStart: (config: QuizConfig) => void;
@@ -23,6 +24,10 @@ const STORAGE_KEYS = {
   nvidiaKey: 'pubquiz_nvidia_key',
   openaiKey: 'pubquiz_openai_key',
   anthropicKey: 'pubquiz_anthropic_key',
+  googleKey: 'pubquiz_google_key',
+  // Expertenmodus Keys
+  expertGoogleKey: 'pubquiz_expert_google_key',
+  expertGroqKey: 'pubquiz_expert_groq_key',
 };
 
 const TRANSLATIONS = {
@@ -76,7 +81,18 @@ const TRANSLATIONS = {
     noHistory: 'Es wurden noch keine Themen abgefragt.',
     historyNote: 'Eigene Kategorien werden nicht getrackt, um Wiederholungen zu ermöglichen.',
     free: 'Kostenlos',
-    providerNote: 'Jeder Anbieter speichert seinen eigenen API Key'
+    providerNote: 'Jeder Anbieter speichert seinen eigenen API Key',
+    expertMode: 'Expertenmodus',
+    expertModeDesc: 'Nutzt zwei KI-Modelle: eines für Recherche, eines für Quiz-Generierung - komplett kostenlos mit Groq!',
+    expertResearchKey: 'Groq API Key',
+    expertGenerationKey: 'Groq API Key (Quiz-Generierung)',
+    expertResearchModel: 'Recherche-Modell',
+    expertGenerationModel: 'Generierungs-Modell',
+    expertHowItWorks: 'So funktioniert der Expertenmodus',
+    expertStep1: '1. Erstes Modell recherchiert und verifiziert Fakten',
+    expertStep2: '2. Zweites Modell erstellt daraus präzise Quiz-Fragen',
+    expertStep3: '3. Chain-of-Thought für plausible falsche Antworten',
+    expertBenefit: '✨ Höhere Genauigkeit durch Zwei-Stufen-Verifikation - 100% kostenlos!'
   },
   en: {
     title: 'PubQuiz Master',
@@ -128,7 +144,18 @@ const TRANSLATIONS = {
     noHistory: 'No topics have been asked yet.',
     historyNote: 'Custom categories are not tracked to allow repeated use.',
     free: 'Free',
-    providerNote: 'Each provider stores its own API key'
+    providerNote: 'Each provider stores its own API key',
+    expertMode: 'Expert Mode',
+    expertModeDesc: 'Uses two AI models: one for research, one for quiz generation - completely free with Groq!',
+    expertResearchKey: 'Groq API Key',
+    expertGenerationKey: 'Groq API Key (Quiz Generation)',
+    expertResearchModel: 'Research Model',
+    expertGenerationModel: 'Generation Model',
+    expertHowItWorks: 'How Expert Mode works',
+    expertStep1: '1. First model researches and verifies facts',
+    expertStep2: '2. Second model creates precise quiz questions',
+    expertStep3: '3. Chain-of-Thought for plausible wrong answers',
+    expertBenefit: '✨ Higher accuracy through two-stage verification - 100% free!'
   }
 };
 
@@ -140,6 +167,8 @@ const getProviderStorageKey = (provider: ApiProvider): string => {
     nvidia: STORAGE_KEYS.nvidiaKey,
     openai: STORAGE_KEYS.openaiKey,
     anthropic: STORAGE_KEYS.anthropicKey,
+    google: STORAGE_KEYS.googleKey,
+    expert: STORAGE_KEYS.expertGoogleKey, // Für Expert-Modus verwenden wir Google als Haupt-Key
   };
   return keys[provider];
 };
@@ -159,6 +188,11 @@ export function SetupScreen({ onStart, onBack }: SetupScreenProps) {
   const [difficulty, setDifficulty] = useState<Difficulty>('mixed');
   const [showHistoryPanel, setShowHistoryPanel] = useState(false);
   const [articleCount, setArticleCount] = useState(0);
+  
+  // Expertenmodus State
+  const [expertGroqKey, setExpertGroqKey] = useState('');
+  const [expertResearchModel, setExpertResearchModel] = useState('llama-3.3-70b-versatile');
+  const [expertGenerationModel, setExpertGenerationModel] = useState('llama-3.3-70b-versatile');
 
   const t = TRANSLATIONS[language];
   const categories = language === 'de' ? CATEGORIES_DE : CATEGORIES_EN;
@@ -216,9 +250,36 @@ export function SetupScreen({ onStart, onBack }: SetupScreenProps) {
 
   // Lade API-Key wenn Provider wechselt
   useEffect(() => {
-    const providerKey = localStorage.getItem(getProviderStorageKey(apiProvider));
-    setApiKey(providerKey || '');
-    setModel(API_PROVIDERS[apiProvider].defaultModel);
+    if (apiProvider === 'expert') {
+      // Expertenmodus: Lade Groq Key
+      const savedGroqKey = localStorage.getItem(STORAGE_KEYS.expertGroqKey);
+      if (savedGroqKey) setExpertGroqKey(savedGroqKey);
+      
+      // Lade gespeicherte Modelle oder verwende Standard
+      const savedResearchModel = localStorage.getItem('pubquiz_expert_research_model');
+      const savedGenerationModel = localStorage.getItem('pubquiz_expert_generation_model');
+      
+      // Validiere die Modelle - nur aktuelle Groq-Modelle zulassen
+      const validGroqModels = ['llama-3.3-70b-versatile', 'llama-3.1-70b-versatile', 'llama3-70b-8192', 'mixtral-8x7b-32768', 'gemma2-9b-it'];
+      
+      if (savedResearchModel && validGroqModels.includes(savedResearchModel)) {
+        setExpertResearchModel(savedResearchModel);
+      } else {
+        setExpertResearchModel('llama-3.3-70b-versatile');
+        localStorage.setItem('pubquiz_expert_research_model', 'llama-3.3-70b-versatile');
+      }
+      
+      if (savedGenerationModel && validGroqModels.includes(savedGenerationModel)) {
+        setExpertGenerationModel(savedGenerationModel);
+      } else {
+        setExpertGenerationModel('llama-3.3-70b-versatile');
+        localStorage.setItem('pubquiz_expert_generation_model', 'llama-3.3-70b-versatile');
+      }
+    } else {
+      const providerKey = localStorage.getItem(getProviderStorageKey(apiProvider));
+      setApiKey(providerKey || '');
+      setModel(API_PROVIDERS[apiProvider].defaultModel);
+    }
     setShowApiInfo(false);
     setShowModelInfo(false);
   }, [apiProvider]);
@@ -286,39 +347,57 @@ export function SetupScreen({ onStart, onBack }: SetupScreenProps) {
   const needsMoreCategories = totalSelected < numCategories;
 
   const handleStart = () => {
-    if (!apiKey.trim()) {
-      alert(t.apiKeyRequired);
-      return;
+    // Validierung für Expertenmodus
+    if (apiProvider === 'expert') {
+      if (!expertGroqKey.trim()) {
+        alert(language === 'de' ? 'Bitte gib deinen Groq API Key ein!' : 'Please enter your Groq API Key!');
+        return;
+      }
+    } else {
+      if (!apiKey.trim()) {
+        alert(t.apiKeyRequired);
+        return;
+      }
+      if (!model.trim()) {
+        alert(t.modelRequired);
+        return;
+      }
     }
-    if (!model.trim()) {
-      alert(t.modelRequired);
-      return;
-    }
+    
     if (needsMoreCategories) {
       alert(t.notEnoughCategories);
       return;
     }
+    
     onStart({
       numCategories,
       questionsPerCategory,
-      apiKey: apiKey.trim(),
-      model: model.trim(),
+      apiKey: apiProvider === 'expert' ? expertGroqKey.trim() : apiKey.trim(),
+      model: apiProvider === 'expert' ? `${expertResearchModel} + ${expertGenerationModel}` : model.trim(),
       apiProvider,
       language,
       selectedCategories: selectedCategories.slice(0, numCategories),
       customCategories,
-      difficulty
+      difficulty,
+      expertMode: apiProvider === 'expert' ? {
+        researchApiKey: expertGroqKey.trim(),
+        generationApiKey: expertGroqKey.trim(),
+        researchModel: expertResearchModel,
+        generationModel: expertGenerationModel,
+      } : undefined
     });
   };
 
   const totalQuestions = numCategories * questionsPerCategory;
 
-  const providerTabs: { id: ApiProvider; icon: string }[] = [
-    { id: 'openrouter', icon: '🌐' },
-    { id: 'groq', icon: '⚡' },
-    { id: 'nvidia', icon: '🟢' },
-    { id: 'openai', icon: '🤖' },
-    { id: 'anthropic', icon: '🧠' },
+  const providerTabs: ApiProvider[] = [
+    'openrouter',
+    'groq',
+    'nvidia',
+    'openai',
+    'anthropic',
+    'google',
+    'expert',
   ];
 
   return (
@@ -367,18 +446,22 @@ export function SetupScreen({ onStart, onBack }: SetupScreenProps) {
           <div>
             <label className="text-white font-medium block mb-3">{t.apiProvider}</label>
             <div className="flex flex-wrap gap-2">
-              {providerTabs.map((tab) => (
+              {providerTabs.map((providerId) => (
                 <button
-                  key={tab.id}
-                  onClick={() => handleProviderChange(tab.id)}
+                  key={providerId}
+                  onClick={() => handleProviderChange(providerId)}
                   className={`flex-1 min-w-[100px] px-4 py-3 rounded-xl font-medium transition-all flex flex-col items-center gap-1 ${
-                    apiProvider === tab.id
+                    apiProvider === providerId
                       ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white ring-2 ring-purple-300'
                       : 'bg-white/10 text-purple-200 hover:bg-white/20'
                   }`}
                 >
-                  <span className="text-2xl">{tab.icon}</span>
-                  <span className="text-xs">{API_PROVIDERS[tab.id].name}</span>
+                  <ProviderIcon 
+                    provider={providerId} 
+                    size={28} 
+                    className={apiProvider === providerId ? 'text-white' : 'text-purple-200'}
+                  />
+                  <span className="text-xs">{API_PROVIDERS[providerId].name}</span>
                 </button>
               ))}
             </div>
@@ -387,81 +470,181 @@ export function SetupScreen({ onStart, onBack }: SetupScreenProps) {
             </p>
           </div>
 
-          {/* API Key Input */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-white font-medium">
-                {currentProvider.name} {t.apiKey}
-              </label>
-              <button
-                onClick={() => setShowApiInfo(!showApiInfo)}
-                className="text-purple-300 hover:text-white text-sm underline"
-              >
-                {t.apiKeyHelp}
-              </button>
-            </div>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => handleApiKeyChange(e.target.value)}
-              placeholder={`${currentProvider.keyPrefix}...`}
-              className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-400"
-            />
-            {showApiInfo && (
-              <div className="mt-2 p-3 bg-purple-800/50 rounded-lg text-sm text-purple-200">
-                <p>{t.apiKeyInfo1} <a href={currentProvider.docsUrl} target="_blank" rel="noopener noreferrer" className="underline text-white">{currentProvider.docsUrl}</a></p>
-                <p>{t.apiKeyInfo2}</p>
-                <p>{t.apiKeyInfo3}</p>
+          {/* API Key Input - Normal Mode */}
+          {apiProvider !== 'expert' ? (
+            <>
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-white font-medium">
+                    {currentProvider.name} {t.apiKey}
+                  </label>
+                  <button
+                    onClick={() => setShowApiInfo(!showApiInfo)}
+                    className="text-purple-300 hover:text-white text-sm underline"
+                  >
+                    {t.apiKeyHelp}
+                  </button>
+                </div>
+                <input
+                  type="password"
+                  value={apiKey}
+                  onChange={(e) => handleApiKeyChange(e.target.value)}
+                  placeholder={`${currentProvider.keyPrefix}...`}
+                  className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-400"
+                />
+                {showApiInfo && (
+                  <div className="mt-2 p-3 bg-purple-800/50 rounded-lg text-sm text-purple-200">
+                    <p>{t.apiKeyInfo1} <a href={currentProvider.docsUrl} target="_blank" rel="noopener noreferrer" className="underline text-white">{currentProvider.docsUrl}</a></p>
+                    <p>{t.apiKeyInfo2}</p>
+                    <p>{t.apiKeyInfo3}</p>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
 
-          {/* Model Input */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-white font-medium">{t.model}</label>
-              <button
-                onClick={() => setShowModelInfo(!showModelInfo)}
-                className="text-purple-300 hover:text-white text-sm underline"
-              >
-                {t.modelHelp}
-              </button>
-            </div>
-            <input
-              type="text"
-              value={model}
-              onChange={(e) => handleModelChange(e.target.value)}
-              placeholder={currentProvider.defaultModel}
-              className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-400 font-mono text-sm"
-            />
-            {showModelInfo && (
-              <div className="mt-2 p-3 bg-purple-800/50 rounded-lg text-sm text-purple-200">
-                <p className="font-bold mb-2">{t.modelInfo}</p>
-                <ul className="space-y-1 font-mono text-xs">
-                  {currentProvider.models.map((m) => (
-                    <li 
-                      key={m.id}
-                      className="cursor-pointer hover:text-white flex items-center gap-2"
-                      onClick={() => handleModelChange(m.id)}
-                    >
-                      • {m.id}
-                      {m.free && (
-                        <span className="px-1.5 py-0.5 bg-green-500/30 text-green-300 text-[10px] rounded">
-                          {t.free}
-                        </span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-                <p className="mt-2 text-purple-300">{t.modelTip}</p>
-                <p className="mt-1">
-                  <a href={currentProvider.docsUrl} target="_blank" rel="noopener noreferrer" className="underline text-white">
-                    {t.allModels}
-                  </a>
+              {/* Model Input */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-white font-medium">{t.model}</label>
+                  <button
+                    onClick={() => setShowModelInfo(!showModelInfo)}
+                    className="text-purple-300 hover:text-white text-sm underline"
+                  >
+                    {t.modelHelp}
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  value={model}
+                  onChange={(e) => handleModelChange(e.target.value)}
+                  placeholder={currentProvider.defaultModel}
+                  className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-400 font-mono text-sm"
+                />
+                {showModelInfo && (
+                  <div className="mt-2 p-3 bg-purple-800/50 rounded-lg text-sm text-purple-200">
+                    <p className="font-bold mb-2">{t.modelInfo}</p>
+                    <ul className="space-y-1 font-mono text-xs">
+                      {currentProvider.models.map((m) => (
+                        <li 
+                          key={m.id}
+                          className="cursor-pointer hover:text-white flex items-center gap-2"
+                          onClick={() => handleModelChange(m.id)}
+                        >
+                          • {m.id}
+                          {m.free && (
+                            <span className="px-1.5 py-0.5 bg-green-500/30 text-green-300 text-[10px] rounded">
+                              {t.free}
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="mt-2 text-purple-300">{t.modelTip}</p>
+                    <p className="mt-1">
+                      <a href={currentProvider.docsUrl} target="_blank" rel="noopener noreferrer" className="underline text-white">
+                        {t.allModels}
+                      </a>
+                    </p>
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            /* Expert Mode UI */
+            <div className="space-y-4">
+              {/* Expert Mode Info Box */}
+              <div className="bg-gradient-to-r from-amber-500/20 to-yellow-500/20 border border-amber-400/30 rounded-xl p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <ProviderIcon provider="expert" size={28} className="text-amber-400" />
+                  <h3 className="text-white font-bold">{t.expertMode}</h3>
+                  <span className="px-2 py-0.5 bg-green-500/30 text-green-300 text-xs rounded-full">
+                    100% {t.free}
+                  </span>
+                </div>
+                <p className="text-amber-200 text-sm mb-3">{t.expertModeDesc}</p>
+                
+                <button
+                  onClick={() => setShowApiInfo(!showApiInfo)}
+                  className="text-amber-300 hover:text-white text-sm underline"
+                >
+                  {t.expertHowItWorks}
+                </button>
+                
+                {showApiInfo && (
+                  <div className="mt-3 pt-3 border-t border-amber-400/30 space-y-2 text-sm">
+                    <p className="text-amber-200">🔍 {t.expertStep1}</p>
+                    <p className="text-amber-200">🧠 {t.expertStep2}</p>
+                    <p className="text-amber-200">💭 {t.expertStep3}</p>
+                    <p className="text-green-300 font-medium mt-2">{t.expertBenefit}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Groq API Key */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-white font-medium flex items-center gap-2">
+                    <ProviderIcon provider="groq" size={20} className="text-yellow-400" /> {t.expertResearchKey}
+                  </label>
+                </div>
+                <input
+                  type="password"
+                  value={expertGroqKey}
+                  onChange={(e) => {
+                    setExpertGroqKey(e.target.value);
+                    localStorage.setItem(STORAGE_KEYS.expertGroqKey, e.target.value);
+                  }}
+                  placeholder="gsk_..."
+                  className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                />
+                <p className="text-purple-300/70 text-xs mt-1">
+                  → <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" className="underline hover:text-white">console.groq.com/keys</a> (kostenlos)
                 </p>
               </div>
-            )}
-          </div>
+
+              {/* Research Model Selection */}
+              <div>
+                <label className="text-white font-medium block mb-2">
+                  🔍 {t.expertResearchModel}
+                </label>
+                <select
+                  value={expertResearchModel}
+                  onChange={(e) => {
+                    setExpertResearchModel(e.target.value);
+                    localStorage.setItem('pubquiz_expert_research_model', e.target.value);
+                  }}
+                  className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                >
+                  <option value="llama-3.3-70b-versatile" className="bg-gray-800">⭐ Llama 3.3 70B Versatile (empfohlen)</option>
+                  <option value="llama-3.1-70b-versatile" className="bg-gray-800">Llama 3.1 70B Versatile</option>
+                  <option value="llama3-70b-8192" className="bg-gray-800">Llama 3 70B</option>
+                  <option value="mixtral-8x7b-32768" className="bg-gray-800">Mixtral 8x7B (schneller)</option>
+                  <option value="gemma2-9b-it" className="bg-gray-800">Gemma 2 9B</option>
+                </select>
+                <p className="text-purple-300/60 text-xs mt-1">Sammelt und verifiziert Fakten zum Thema</p>
+              </div>
+
+              {/* Generation Model Selection */}
+              <div>
+                <label className="text-white font-medium block mb-2">
+                  🧠 {t.expertGenerationModel}
+                </label>
+                <select
+                  value={expertGenerationModel}
+                  onChange={(e) => {
+                    setExpertGenerationModel(e.target.value);
+                    localStorage.setItem('pubquiz_expert_generation_model', e.target.value);
+                  }}
+                  className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                >
+                  <option value="llama-3.3-70b-versatile" className="bg-gray-800">⭐ Llama 3.3 70B Versatile (empfohlen)</option>
+                  <option value="llama-3.1-70b-versatile" className="bg-gray-800">Llama 3.1 70B Versatile</option>
+                  <option value="llama3-70b-8192" className="bg-gray-800">Llama 3 70B</option>
+                  <option value="mixtral-8x7b-32768" className="bg-gray-800">Mixtral 8x7B (schneller)</option>
+                </select>
+                <p className="text-purple-300/60 text-xs mt-1">Erstellt Quiz-Fragen mit Chain-of-Thought</p>
+              </div>
+            </div>
+          )}
 
           {/* Kategorien Slider */}
           <div>
