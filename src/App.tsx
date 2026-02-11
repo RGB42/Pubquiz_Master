@@ -8,7 +8,7 @@ import { QuizScreen } from './components/QuizScreen';
 import { ResultsScreen } from './components/ResultsScreen';
 import { ErrorScreen } from './components/ErrorScreen';
 import { CookieConsent } from './components/CookieConsent';
-import { AdBanner } from './components/AdBanner';
+// AdBanner wird nur auf der Landing Page verwendet, dort importiert
 import { Footer } from './components/Footer';
 import { PrivacyPage, ImprintPage } from './components/LegalPages';
 
@@ -77,6 +77,7 @@ export function App() {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [result, setResult] = useState<QuizResult | null>(null);
   const [error, setError] = useState<string>('');
+  const [rawErrorResponse, setRawErrorResponse] = useState<string | undefined>(undefined);
   const [language, setLanguage] = useState<Language>(() => {
     return (localStorage.getItem('pubquiz_language') as Language) || 'de';
   });
@@ -165,6 +166,7 @@ export function App() {
       setState('playing');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
+      setRawErrorResponse((err as any)?.rawResponse);
       setState('error');
     }
   }, []);
@@ -194,6 +196,7 @@ export function App() {
     setCurrentQuestionIndex(0);
     setResult(null);
     setError('');
+    setRawErrorResponse(undefined);
   }, []);
 
   const handleRetry = useCallback(() => {
@@ -216,6 +219,7 @@ export function App() {
           <LandingPage
             language={language}
             onStartQuiz={() => setState('setup')}
+            adsEnabled={adsEnabled && showAds}
           />
         );
       
@@ -265,6 +269,7 @@ export function App() {
                   })
                   .catch(err => {
                     setError(err instanceof Error ? err.message : t.evaluationError);
+                    setRawErrorResponse((err as any)?.rawResponse);
                     setState('error');
                   });
               }
@@ -294,6 +299,7 @@ export function App() {
         return (
           <ErrorScreen
             error={error}
+            rawResponse={rawErrorResponse}
             onRetry={handleRetry}
             onBack={handleRestart}
             language={language}
@@ -327,36 +333,13 @@ export function App() {
       {/* Premium Header für werbefreie Version */}
       {renderPremiumHeader()}
       
-      {/* Top Ad Banner */}
-      {adsEnabled && showAds && state === 'setup' && (
-        <div className="w-full max-w-4xl mx-auto px-4 pt-4">
-          <AdBanner adSlot="1234567890" adFormat="horizontal" className="h-24" />
-        </div>
-      )}
-
       {/* Main Content */}
       <main className="flex-1">
         {renderContent()}
       </main>
 
-      {/* Side Ads auf größeren Bildschirmen */}
-      {adsEnabled && showAds && state === 'playing' && (
-        <>
-          <div className="hidden xl:block fixed left-4 top-1/2 -translate-y-1/2 w-40">
-            <AdBanner adSlot="1234567891" adFormat="vertical" className="h-96" />
-          </div>
-          <div className="hidden xl:block fixed right-4 top-1/2 -translate-y-1/2 w-40">
-            <AdBanner adSlot="1234567892" adFormat="vertical" className="h-96" />
-          </div>
-        </>
-      )}
-
-      {/* Bottom Ad vor Results */}
-      {adsEnabled && showAds && state === 'finished' && (
-        <div className="w-full max-w-4xl mx-auto px-4 pb-4">
-          <AdBanner adSlot="1234567893" adFormat="horizontal" className="h-24" />
-        </div>
-      )}
+      {/* WICHTIG: Werbung wird NUR auf der Landing Page angezeigt - dort ist genug Publisher Content! */}
+      {/* Keine Werbung auf Setup, Quiz oder Result Screens (interaktive Screens ohne redaktionellen Content) */}
 
       {/* Footer mit rechtlichen Links */}
       <Footer

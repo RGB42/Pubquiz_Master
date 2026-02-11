@@ -18,6 +18,8 @@ export interface Question {
   question: string;
   correctAnswer: string;
   wikipediaSource?: string;
+  sourceType?: 'wikipedia' | 'fandom' | 'other'; // Art der Quelle
+  sourceName?: string; // Name des Wikis (z.B. "Pokewiki", "Wikipedia")
   difficulty: 'easy' | 'medium' | 'hard';
 }
 
@@ -46,6 +48,7 @@ export interface EvaluationResult {
   isCorrect: boolean;
   explanation: string;
   wikipediaUrl?: string;
+  sourceName?: string; // Name der Quelle (Wikipedia, Pokewiki, etc.)
   manualOverride?: boolean;
 }
 
@@ -54,6 +57,13 @@ export interface QuizResult {
   correctAnswers: number;
   score: number;
   evaluations: EvaluationResult[];
+}
+
+// Für Debug-Informationen bei API-Fehlern
+export interface ApiErrorDetails {
+  message: string;
+  rawResponse?: string;
+  timestamp: string;
 }
 
 export const CATEGORIES_DE = [

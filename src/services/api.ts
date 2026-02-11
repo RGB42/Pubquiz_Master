@@ -3,6 +3,50 @@ import { getUsedArticlesForCategory, addUsedArticles, shouldIgnoreHistory, UsedA
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
+// Bekannte Fandom-Wikis für populäre Themen
+const KNOWN_WIKIS: Record<string, { name: string; url: string; language: 'de' | 'en' | 'both' }> = {
+  // Games
+  'pokemon': { name: 'PokéWiki', url: 'https://pokewiki.de', language: 'de' },
+  'pokémon': { name: 'PokéWiki', url: 'https://pokewiki.de', language: 'de' },
+  'zelda': { name: 'Zeldapedia', url: 'https://zelda.fandom.com/de', language: 'de' },
+  'mario': { name: 'MarioWiki', url: 'https://mariowiki.net', language: 'de' },
+  'minecraft': { name: 'Minecraft Wiki', url: 'https://minecraft.wiki/w', language: 'both' },
+  'fortnite': { name: 'Fortnite Wiki', url: 'https://fortnite.fandom.com', language: 'both' },
+  'league of legends': { name: 'LoL Wiki', url: 'https://leagueoflegends.fandom.com/de', language: 'de' },
+  'lol': { name: 'LoL Wiki', url: 'https://leagueoflegends.fandom.com/de', language: 'de' },
+  'world of warcraft': { name: 'WoWpedia', url: 'https://wowpedia.fandom.com', language: 'both' },
+  'wow': { name: 'WoWpedia', url: 'https://wowpedia.fandom.com', language: 'both' },
+  'genshin impact': { name: 'Genshin Impact Wiki', url: 'https://genshin-impact.fandom.com/de', language: 'de' },
+  'genshin': { name: 'Genshin Impact Wiki', url: 'https://genshin-impact.fandom.com/de', language: 'de' },
+  
+  // Anime/Manga
+  'naruto': { name: 'Narutopedia', url: 'https://naruto.fandom.com/de', language: 'de' },
+  'one piece': { name: 'One Piece Wiki', url: 'https://onepiece.fandom.com/de', language: 'de' },
+  'dragon ball': { name: 'Dragon Ball Wiki', url: 'https://dragonball.fandom.com/de', language: 'de' },
+  'attack on titan': { name: 'Attack on Titan Wiki', url: 'https://attackontitan.fandom.com', language: 'both' },
+  'demon slayer': { name: 'Kimetsu no Yaiba Wiki', url: 'https://kimetsu-no-yaiba.fandom.com', language: 'both' },
+  'jojo': { name: 'JoJo Wiki', url: 'https://jojo.fandom.com', language: 'both' },
+  'my hero academia': { name: 'My Hero Academia Wiki', url: 'https://myheroacademia.fandom.com/de', language: 'de' },
+  
+  // Movies/TV
+  'star wars': { name: 'Jedipedia', url: 'https://jedipedia.fandom.com/de', language: 'de' },
+  'harry potter': { name: 'Harry Potter Wiki', url: 'https://harry-potter.fandom.com/de', language: 'de' },
+  'marvel': { name: 'Marvel Wiki', url: 'https://marvel.fandom.com/de', language: 'de' },
+  'mcu': { name: 'Marvel Wiki', url: 'https://marvel.fandom.com/de', language: 'de' },
+  'dc': { name: 'DC Wiki', url: 'https://dc.fandom.com/de', language: 'de' },
+  'batman': { name: 'DC Wiki', url: 'https://dc.fandom.com/de', language: 'de' },
+  'game of thrones': { name: 'Game of Thrones Wiki', url: 'https://gameofthrones.fandom.com/de', language: 'de' },
+  'herr der ringe': { name: 'Ardapedia', url: 'https://ardapedia.herr-der-ringe-film.de', language: 'de' },
+  'lord of the rings': { name: 'Tolkien Gateway', url: 'https://tolkiengateway.net', language: 'en' },
+  'stranger things': { name: 'Stranger Things Wiki', url: 'https://strangerthings.fandom.com/de', language: 'de' },
+  'breaking bad': { name: 'Breaking Bad Wiki', url: 'https://breakingbad.fandom.com/de', language: 'de' },
+  'simpsons': { name: 'Simpsons Wiki', url: 'https://simpsons.fandom.com/de', language: 'de' },
+  
+  // Other
+  'disney': { name: 'Disney Wiki', url: 'https://disney.fandom.com/de', language: 'de' },
+  'pixar': { name: 'Disney Wiki', url: 'https://disney.fandom.com/de', language: 'de' },
+};
+
 function getWikipediaUrl(language: Language): string {
   return language === 'de' 
     ? 'https://de.wikipedia.org/api/rest_v1/page/summary/'
@@ -78,6 +122,19 @@ export async function generateQuestions(
   return allQuestions;
 }
 
+// Finde ein passendes Wiki für eine benutzerdefinierte Kategorie
+function findSpecializedWiki(category: string): { name: string; url: string } | null {
+  const lowerCategory = category.toLowerCase().trim();
+  
+  for (const [key, wiki] of Object.entries(KNOWN_WIKIS)) {
+    if (lowerCategory.includes(key) || key.includes(lowerCategory)) {
+      return { name: wiki.name, url: wiki.url };
+    }
+  }
+  
+  return null;
+}
+
 async function generateCategoryQuestions(
   apiKey: string,
   model: string,
@@ -123,12 +180,43 @@ async function generateCategoryQuestions(
   const difficultyText = difficultyInstructions[language][difficulty];
   const targetDifficulty = difficulty === 'mixed' ? 'mixed (easy/medium/hard)' : difficulty;
 
+  // Prüfe, ob es ein spezialisiertes Wiki für diese Kategorie gibt
+  const specializedWiki = isCustomCategory ? findSpecializedWiki(category) : null;
+  
   // Zusätzlicher Hinweis für benutzerdefinierte Kategorien
-  const customCategoryNote = isCustomCategory
-    ? language === 'de'
-      ? '\n\nHINWEIS: Dies ist eine benutzerdefinierte Kategorie. Auch wenn Themen sich wiederholen könnten, stelle sicher, dass die FRAGEN unterschiedlich formuliert sind.'
-      : '\n\nNOTE: This is a custom category. Even if topics might repeat, ensure the QUESTIONS are formulated differently.'
-    : '';
+  let customCategoryNote = '';
+  
+  if (isCustomCategory && specializedWiki) {
+    customCategoryNote = language === 'de'
+      ? `\n\n🎯 SPEZIELLE QUELLE FÜR DIESE KATEGORIE:
+Für die Kategorie "${category}" verwende das spezialisierte Wiki "${specializedWiki.name}" (${specializedWiki.url}) als Hauptquelle.
+- Nutze das Fachwissen aus diesem Wiki für präzise und korrekte Fragen
+- Die Antworten müssen auf Informationen basieren, die in diesem Wiki verifizierbar sind
+- Gib als "sourceUrl" einen Link zum relevanten Artikel im ${specializedWiki.name} an (Format: ${specializedWiki.url}/wiki/Artikelname oder ähnlich)
+- NICHT Wikipedia verwenden, sondern ${specializedWiki.name}!`
+      : `\n\n🎯 SPECIALIZED SOURCE FOR THIS CATEGORY:
+For the category "${category}" use the specialized wiki "${specializedWiki.name}" (${specializedWiki.url}) as main source.
+- Use the expert knowledge from this wiki for precise and correct questions
+- Answers must be based on information verifiable in this wiki
+- Provide as "sourceUrl" a link to the relevant article in ${specializedWiki.name} (Format: ${specializedWiki.url}/wiki/ArticleName or similar)
+- Do NOT use Wikipedia, use ${specializedWiki.name}!`;
+  } else if (isCustomCategory) {
+    customCategoryNote = language === 'de'
+      ? `\n\n🎯 BENUTZERDEFINIERTE KATEGORIE "${category}":
+- Suche nach dem besten verfügbaren Wiki oder Nachschlagewerk für dieses Thema
+- Wenn es ein Fandom-Wiki, spezialisiertes Wiki oder andere zuverlässige Quelle gibt, nutze diese
+- Gib als "sourceUrl" einen Link zur Quelle an, wo die Antwort verifiziert werden kann
+- Als "sourceName" gib den Namen des verwendeten Wikis/Quelle an (z.B. "Pokewiki", "Narutopedia", "Wikipedia")
+- Stelle ABSOLUT SICHER, dass Frage und Antwort KORREKT und konsistent sind
+- Auch wenn Themen sich wiederholen könnten, stelle sicher, dass die FRAGEN unterschiedlich formuliert sind`
+      : `\n\n🎯 CUSTOM CATEGORY "${category}":
+- Search for the best available wiki or reference for this topic
+- If there's a Fandom wiki, specialized wiki, or other reliable source, use it
+- Provide as "sourceUrl" a link to the source where the answer can be verified
+- As "sourceName" provide the name of the wiki/source used (e.g. "Pokewiki", "Narutopedia", "Wikipedia")
+- Make ABSOLUTELY SURE that question and answer are CORRECT and consistent
+- Even if topics might repeat, ensure the QUESTIONS are formulated differently`;
+  }
 
   const prompt = language === 'de' 
     ? `Du bist ein deutscher Pubquiz-Master. Erstelle ${count} einzigartige Quizfragen für die Kategorie "${category}".
@@ -168,7 +256,9 @@ Antworte im folgenden JSON-Format:
       "question": "Die Frage auf Deutsch",
       "correctAnswer": "Die korrekte Antwort auf Deutsch",
       "difficulty": "medium",
-      "wikipediaTopic": "Exakter_Wikipedia_Artikelname"
+      "wikipediaTopic": "Exakter_Wikipedia_Artikelname",
+      "sourceUrl": "https://de.wikipedia.org/wiki/Artikel ODER https://pokewiki.de/Artikel falls spezialisiertes Wiki",
+      "sourceName": "Wikipedia ODER Name des spezialisierten Wikis"
     }
   ]
 }`
@@ -208,7 +298,9 @@ Respond in the following JSON format:
       "question": "The question in English",
       "correctAnswer": "The correct answer in English",
       "difficulty": "medium",
-      "wikipediaTopic": "Exact_Wikipedia_Article_Name"
+      "wikipediaTopic": "Exact_Wikipedia_Article_Name",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Article OR https://specializedwiki.com/Article if specialized wiki",
+      "sourceName": "Wikipedia OR name of the specialized wiki"
     }
   ]
 }`;
@@ -248,27 +340,63 @@ Respond in the following JSON format:
     // Parse JSON from response
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      throw new Error(language === 'de' ? 'Keine gültige JSON-Antwort erhalten' : 'No valid JSON response received');
+      const error = new Error(language === 'de' ? 'Keine gültige JSON-Antwort erhalten' : 'No valid JSON response received');
+      (error as any).rawResponse = content;
+      throw error;
     }
     
-    const parsed = JSON.parse(jsonMatch[0]);
+    let parsed;
+    try {
+      parsed = JSON.parse(jsonMatch[0]);
+    } catch (parseError) {
+      const error = new Error(language === 'de' ? 'JSON-Parsing fehlgeschlagen' : 'JSON parsing failed');
+      (error as any).rawResponse = content;
+      throw error;
+    }
     const questions: Question[] = [];
     
     for (const q of parsed.questions || []) {
-      // Wikipedia Fact-Check
-      const verified = await verifyWithWikipedia(q.wikipediaTopic || q.correctAnswer, language);
-      
       // Wenn ein spezifischer Schwierigkeitsgrad gewählt wurde, diesen verwenden
       const questionDifficulty = difficulty === 'mixed' 
         ? (q.difficulty || 'medium') 
         : difficulty;
+      
+      // Bestimme die Quelle - spezialisiertes Wiki oder Wikipedia
+      let sourceUrl = q.sourceUrl;
+      let sourceName = q.sourceName || 'Wikipedia';
+      let sourceType: 'wikipedia' | 'fandom' | 'other' = 'wikipedia';
+      
+      if (isCustomCategory && (q.sourceUrl || specializedWiki)) {
+        // Für benutzerdefinierte Kategorien: Verwende die angegebene Quelle
+        if (q.sourceUrl && !q.sourceUrl.includes('wikipedia.org')) {
+          sourceUrl = q.sourceUrl;
+          sourceName = q.sourceName || specializedWiki?.name || 'Spezialisiertes Wiki';
+          sourceType = q.sourceUrl.includes('fandom.com') ? 'fandom' : 'other';
+        } else if (specializedWiki && !q.sourceUrl) {
+          // Fallback auf bekanntes spezialisiertes Wiki
+          const articleName = encodeURIComponent((q.wikipediaTopic || q.correctAnswer).replace(/ /g, '_'));
+          sourceUrl = `${specializedWiki.url}/${articleName}`;
+          sourceName = specializedWiki.name;
+          sourceType = 'fandom';
+        }
+      }
+      
+      // Falls keine spezielle Quelle, nutze Wikipedia
+      if (!sourceUrl) {
+        const verified = await verifyWithWikipedia(q.wikipediaTopic || q.correctAnswer, language);
+        sourceUrl = verified.url || `${getWikipediaBaseUrl(language)}${encodeURIComponent((q.wikipediaTopic || q.correctAnswer).replace(/ /g, '_'))}`;
+        sourceName = 'Wikipedia';
+        sourceType = 'wikipedia';
+      }
       
       questions.push({
         id: crypto.randomUUID(),
         category,
         question: q.question,
         correctAnswer: q.correctAnswer,
-        wikipediaSource: verified.url || `${getWikipediaBaseUrl(language)}${encodeURIComponent((q.wikipediaTopic || q.correctAnswer).replace(/ /g, '_'))}`,
+        wikipediaSource: sourceUrl,
+        sourceType,
+        sourceName,
         difficulty: questionDifficulty as 'easy' | 'medium' | 'hard'
       });
     }
@@ -444,10 +572,19 @@ Respond in the format:
     
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      throw new Error(language === 'de' ? 'Keine gültige Bewertung erhalten' : 'No valid evaluation received');
+      const error = new Error(language === 'de' ? 'Keine gültige Bewertung erhalten' : 'No valid evaluation received');
+      (error as any).rawResponse = content;
+      throw error;
     }
     
-    const parsed = JSON.parse(jsonMatch[0]);
+    let parsed;
+    try {
+      parsed = JSON.parse(jsonMatch[0]);
+    } catch (parseError) {
+      const error = new Error(language === 'de' ? 'JSON-Parsing der Bewertung fehlgeschlagen' : 'JSON parsing of evaluation failed');
+      (error as any).rawResponse = content;
+      throw error;
+    }
     
     for (const evaluation of parsed.evaluations || []) {
       const question = questions[evaluation.questionIndex];
@@ -461,7 +598,8 @@ Respond in the format:
           correctAnswer: question.correctAnswer,
           isCorrect: evaluation.isCorrect,
           explanation: evaluation.explanation,
-          wikipediaUrl: question.wikipediaSource
+          wikipediaUrl: question.wikipediaSource,
+          sourceName: question.sourceName || 'Wikipedia'
         });
       }
     }
@@ -502,7 +640,8 @@ Respond in the format:
         explanation: isCorrect 
           ? (language === 'de' ? 'Korrekt!' : 'Correct!') 
           : (language === 'de' ? 'Leider falsch.' : 'Unfortunately incorrect.'),
-        wikipediaUrl: q.wikipediaSource
+        wikipediaUrl: q.wikipediaSource,
+        sourceName: q.sourceName || 'Wikipedia'
       };
     });
   }
