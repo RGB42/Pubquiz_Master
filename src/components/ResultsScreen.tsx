@@ -169,7 +169,7 @@ export function ResultsScreen({ result, onRestart, language, onUpdateResult }: R
         </div>
         
         <p className="text-center text-purple-300/50 text-xs mt-6">
-          v2.6.0
+          v3.2.0
         </p>
       </div>
     </div>
@@ -331,6 +331,18 @@ function EvaluationCard({ evaluation, index, language, onUpdate }: EvaluationCar
             </button>
           </div>
           
+          {/* Image if present */}
+          {evaluation.imageUrl && (
+            <div className="mb-4 rounded-lg overflow-hidden bg-white/5">
+              <img 
+                src={evaluation.imageUrl} 
+                alt="Quiz image" 
+                className="w-full max-h-48 object-contain"
+                loading="lazy"
+              />
+            </div>
+          )}
+          
           <p className="text-white font-medium mb-3">{evaluation.question}</p>
           
           <div className="space-y-2 text-sm">
@@ -344,7 +356,14 @@ function EvaluationCard({ evaluation, index, language, onUpdate }: EvaluationCar
             {!evaluation.isCorrect && (
               <div className="flex items-start gap-2">
                 <span className="text-purple-300 shrink-0">{t.correctAnswer}:</span>
-                <span className="text-green-300">{evaluation.correctAnswer}</span>
+                <span className="text-green-300">
+                  {evaluation.correctAnswer}
+                  {evaluation.alternativeAnswers && evaluation.alternativeAnswers.length > 0 && (
+                    <span className="text-purple-300 text-xs ml-2">
+                      ({language === 'de' ? 'oder' : 'or'}: {evaluation.alternativeAnswers.join(', ')})
+                    </span>
+                  )}
+                </span>
               </div>
             )}
             

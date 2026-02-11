@@ -311,10 +311,34 @@ For the category "${category}" use the specialized wiki "${specializedWiki.name}
   const prompt = language === 'de' 
     ? `Du bist ein deutscher Pubquiz-Master. Erstelle ${count} einzigartige Quizfragen für die Kategorie "${category}".
 
-⚠️ KRITISCH - KONSISTENZ ZWISCHEN FRAGE UND ANTWORT:
+⚠️ KRITISCH - JEDE FRAGE MUSS EINDEUTIG SEIN:
+Jede Frage darf NUR EINE einzige korrekte Antwort haben! 
+Vermeide Fragen, bei denen mehrere Antworten richtig sein könnten!
+
+🎯 PRÄZISION IST PFLICHT:
+- Bei Personen: Präzisiere mit "ERSTE/R", "im Jahr XXXX", "bei den Olympischen Spielen XXXX"
+- Bei Filmen/Serien: Nenne das Jahr oder den Regisseur
+- Bei Ereignissen: Gib den genauen Zeitraum an
+- Bei Listen (mehrere könnten richtig sein): Frage nach "dem ERSTEN", "dem GRÖSSTEN", "dem ÄLTESTEN"
+
+❌ SCHLECHTE FRAGEN (MEHRERE ANTWORTEN MÖGLICH):
+- "Welcher Schauspieler spielte James Bond?" (6+ Schauspieler haben Bond gespielt!)
+- "Welche Stadt ist Hauptstadt eines europäischen Landes?" (Dutzende möglich!)
+- "Wer war US-Präsident?" (46 mögliche Antworten!)
+- "Welches Pokémon ist ein Feuer-Typ?" (Hunderte möglich!)
+
+✅ GUTE FRAGEN (NUR EINE ANTWORT):
+- "Welcher Schauspieler spielte James Bond als ERSTER im Kino?" → "Sean Connery"
+- "Welcher Schauspieler spielte James Bond im Film 'Casino Royale' von 2006?" → "Daniel Craig"
+- "Wer war der erste US-Präsident?" → "George Washington"
+- "Welches Starter-Pokémon vom Typ Feuer gibt es in der ersten Generation?" → "Glumanda"
+
+⚠️ KONSISTENZ ZWISCHEN FRAGE UND ANTWORT:
 Die Antwort MUSS EXAKT das sein, wonach die Frage fragt!
 
-SELBST-CHECK für jede Frage: "Wenn ich frage 'Welcher Film...', muss die Antwort ein FILMNAME sein!"
+SELBST-CHECK für jede Frage: 
+1. "Gibt es nur EINE richtige Antwort?" - Wenn nein, präzisiere die Frage!
+2. "Passt die Antwort zum Fragetyp?" - "Welcher Film?" = Filmname, "Wer?" = Person
 
 FALSCHE Beispiele (SO NICHT MACHEN!):
 ❌ Frage: "Welcher japanische Horrorfilm..." → Antwort: "Videokassette" (FALSCH! Gefragt war FILM!)
@@ -339,25 +363,67 @@ WICHTIGE REGELN:
 - VERMEIDE Fragen zu den unten aufgelisteten bereits verwendeten Themen!
 - Antworte NUR mit validem JSON, kein anderer Text${exclusionList}${customCategoryNote}
 
+📸 BILDERFRAGEN (OPTIONAL):
+Du kannst auch Bilderfragen erstellen! Bei einer Bilderfrage:
+- Gib als "questionType": "image" an
+- Finde eine passende Bild-URL von Wikimedia Commons (https://commons.wikimedia.org)
+- Die Frage sollte sich auf das Bild beziehen, z.B. "Was ist auf dem Bild zu sehen?" oder "Welches Tier zeigt dieses Bild?"
+- Format für Wikimedia Commons Bilder: https://upload.wikimedia.org/wikipedia/commons/...
+- Nicht jede Frage muss ein Bild haben - nur wenn es sinnvoll ist!
+
+🔄 ALTERNATIVE ANTWORTEN:
+Wenn eine Frage MEHRERE gleichwertige richtige Antworten hat (z.B. internationale Schreibweisen, Synonyme):
+- Gib die Hauptantwort als "correctAnswer"
+- Gib alternative Antworten als Array in "alternativeAnswers"
+- Beispiel: "correctAnswer": "USA", "alternativeAnswers": ["Vereinigte Staaten", "United States", "Amerika"]
+
 Antworte im folgenden JSON-Format:
 {
   "questions": [
     {
       "question": "Die Frage auf Deutsch",
       "correctAnswer": "Die korrekte Antwort auf Deutsch",
+      "alternativeAnswers": ["Alternative1", "Alternative2"],
       "difficulty": "medium",
       "wikipediaTopic": "Exakter_Wikipedia_Artikelname",
       "sourceUrl": "https://de.wikipedia.org/wiki/Artikel ODER https://pokewiki.de/Artikel falls spezialisiertes Wiki",
-      "sourceName": "Wikipedia ODER Name des spezialisierten Wikis"
+      "sourceName": "Wikipedia ODER Name des spezialisierten Wikis",
+      "questionType": "text",
+      "imageUrl": "https://upload.wikimedia.org/... (nur bei Bilderfragen)",
+      "imageAlt": "Beschreibung des Bildes (nur bei Bilderfragen)"
     }
   ]
 }`
     : `You are a pub quiz master. Create ${count} unique quiz questions for the category "${category}".
 
-⚠️ CRITICAL - CONSISTENCY BETWEEN QUESTION AND ANSWER:
+⚠️ CRITICAL - EACH QUESTION MUST BE UNAMBIGUOUS:
+Each question may only have ONE single correct answer!
+Avoid questions where multiple answers could be correct!
+
+🎯 PRECISION IS MANDATORY:
+- For people: Specify with "FIRST", "in the year XXXX", "at the XXXX Olympics"
+- For movies/series: Include the year or director
+- For events: Give the exact time period
+- For lists (multiple could be correct): Ask for "the FIRST", "the LARGEST", "the OLDEST"
+
+❌ BAD QUESTIONS (MULTIPLE ANSWERS POSSIBLE):
+- "Which actor played James Bond?" (6+ actors have played Bond!)
+- "Which city is the capital of a European country?" (Dozens possible!)
+- "Who was US President?" (46 possible answers!)
+- "Which Pokémon is a Fire type?" (Hundreds possible!)
+
+✅ GOOD QUESTIONS (ONLY ONE ANSWER):
+- "Which actor played James Bond FIRST in cinema?" → "Sean Connery"
+- "Which actor played James Bond in the 2006 film 'Casino Royale'?" → "Daniel Craig"
+- "Who was the first US President?" → "George Washington"
+- "Which Fire-type starter Pokémon exists in the first generation?" → "Charmander"
+
+⚠️ CONSISTENCY BETWEEN QUESTION AND ANSWER:
 The answer MUST BE EXACTLY what the question asks for!
 
-SELF-CHECK for each question: "If I ask 'Which movie...', the answer MUST be a MOVIE NAME!"
+SELF-CHECK for each question:
+1. "Is there only ONE correct answer?" - If not, make the question more specific!
+2. "Does the answer match the question type?" - "Which movie?" = movie name, "Who?" = person
 
 WRONG examples (DO NOT DO THIS!):
 ❌ Question: "Which Japanese horror film..." → Answer: "Videotape" (WRONG! Asked for FILM!)
@@ -381,16 +447,34 @@ IMPORTANT RULES:
 - AVOID questions about the already used topics listed below!
 - Respond ONLY with valid JSON, no other text${exclusionList}${customCategoryNote}
 
+📸 IMAGE QUESTIONS (OPTIONAL):
+You can also create image questions! For an image question:
+- Set "questionType": "image"
+- Find a suitable image URL from Wikimedia Commons (https://commons.wikimedia.org)
+- The question should relate to the image, e.g. "What is shown in this image?" or "Which animal does this picture show?"
+- Format for Wikimedia Commons images: https://upload.wikimedia.org/wikipedia/commons/...
+- Not every question needs an image - only when it makes sense!
+
+🔄 ALTERNATIVE ANSWERS:
+If a question has MULTIPLE equally valid correct answers (e.g. international spellings, synonyms):
+- Provide the main answer as "correctAnswer"
+- Provide alternative answers as an array in "alternativeAnswers"
+- Example: "correctAnswer": "USA", "alternativeAnswers": ["United States", "United States of America", "America"]
+
 Respond in the following JSON format:
 {
   "questions": [
     {
       "question": "The question in English",
       "correctAnswer": "The correct answer in English",
+      "alternativeAnswers": ["Alternative1", "Alternative2"],
       "difficulty": "medium",
       "wikipediaTopic": "Exact_Wikipedia_Article_Name",
       "sourceUrl": "https://en.wikipedia.org/wiki/Article OR https://specializedwiki.com/Article if specialized wiki",
-      "sourceName": "Wikipedia OR name of the specialized wiki"
+      "sourceName": "Wikipedia OR name of the specialized wiki",
+      "questionType": "text",
+      "imageUrl": "https://upload.wikimedia.org/... (only for image questions)",
+      "imageAlt": "Description of the image (only for image questions)"
     }
   ]
 }`;
@@ -455,10 +539,14 @@ Respond in the following JSON format:
         category,
         question: q.question,
         correctAnswer: q.correctAnswer,
+        alternativeAnswers: q.alternativeAnswers || [],
         wikipediaSource: sourceUrl,
         sourceType,
         sourceName,
-        difficulty: questionDifficulty as 'easy' | 'medium' | 'hard'
+        difficulty: questionDifficulty as 'easy' | 'medium' | 'hard',
+        questionType: 'text' as const,
+        imageUrl: q.imageUrl,
+        imageAlt: q.imageAlt
       });
     }
     
@@ -552,7 +640,7 @@ Bewerte jede Antwort und antworte NUR mit validem JSON:
 
 ${questionsToEvaluate.map((item, i) => `
 Frage ${i + 1}: ${item.question.question}
-Korrekte Antwort: ${item.question.correctAnswer}
+Korrekte Antwort: ${item.question.correctAnswer}${item.question.alternativeAnswers?.length ? `\nAlternative richtige Antworten: ${item.question.alternativeAnswers.join(', ')}` : ''}
 Antwort des Spielers: ${item.userAnswer || '(keine Antwort)'}
 Wikipedia-Artikel: ${item.question.wikipediaSource || 'nicht verfügbar'}
 `).join('\n')}
@@ -593,7 +681,7 @@ Evaluate each answer and respond ONLY with valid JSON:
 
 ${questionsToEvaluate.map((item, i) => `
 Question ${i + 1}: ${item.question.question}
-Correct Answer: ${item.question.correctAnswer}
+Correct Answer: ${item.question.correctAnswer}${item.question.alternativeAnswers?.length ? `\nAlternative correct answers: ${item.question.alternativeAnswers.join(', ')}` : ''}
 Player's Answer: ${item.userAnswer || '(no answer)'}
 Wikipedia Article: ${item.question.wikipediaSource || 'not available'}
 `).join('\n')}
@@ -638,10 +726,12 @@ Respond in the format:
           question: question.question,
           userAnswer: userAnswer?.answer || '',
           correctAnswer: question.correctAnswer,
+          alternativeAnswers: question.alternativeAnswers,
           isCorrect: evaluation.isCorrect,
           explanation: evaluation.explanation,
           wikipediaUrl: question.wikipediaSource,
-          sourceName: question.sourceName || 'Wikipedia'
+          sourceName: question.sourceName || 'Wikipedia',
+          imageUrl: question.imageUrl
         });
       }
     }
@@ -655,9 +745,12 @@ Respond in the format:
           question: q.question,
           userAnswer: userAnswer?.answer || '',
           correctAnswer: q.correctAnswer,
+          alternativeAnswers: q.alternativeAnswers,
           isCorrect: false,
           explanation: language === 'de' ? 'Konnte nicht automatisch bewertet werden' : 'Could not be automatically evaluated',
-          wikipediaUrl: q.wikipediaSource
+          wikipediaUrl: q.wikipediaSource,
+          sourceName: q.sourceName || 'Wikipedia',
+          imageUrl: q.imageUrl
         });
       }
     }
@@ -676,7 +769,12 @@ Respond in the format:
       const userAnswer = userAnswers.find(a => a.questionId === q.id);
       const userText = (userAnswer?.answer || '').toLowerCase().trim();
       const correctText = q.correctAnswer.toLowerCase().trim();
-      const isCorrect = userText === correctText || correctText.includes(userText) || userText.includes(correctText);
+      
+      // Prüfe auch alternative Antworten
+      const allCorrectAnswers = [correctText, ...(q.alternativeAnswers?.map(a => a.toLowerCase().trim()) || [])];
+      const isCorrect = allCorrectAnswers.some(correct => 
+        userText === correct || correct.includes(userText) || userText.includes(correct)
+      );
       
       return {
         questionId: q.id,

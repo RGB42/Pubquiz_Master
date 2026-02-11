@@ -96,15 +96,21 @@ export const API_PROVIDERS: Record<ApiProvider, {
   }
 };
 
+export type QuestionType = 'text' | 'image';
+
 export interface Question {
   id: string;
   category: string;
   question: string;
   correctAnswer: string;
+  alternativeAnswers?: string[]; // Alternative richtige Antworten
   wikipediaSource?: string;
   sourceType?: 'wikipedia' | 'fandom' | 'other'; // Art der Quelle
   sourceName?: string; // Name des Wikis (z.B. "Pokewiki", "Wikipedia")
   difficulty: 'easy' | 'medium' | 'hard';
+  questionType: QuestionType;
+  imageUrl?: string; // URL für Bilderfragen
+  imageAlt?: string; // Beschreibung des Bildes
 }
 
 export interface UserAnswer {
@@ -129,11 +135,13 @@ export interface EvaluationResult {
   question: string;
   userAnswer: string;
   correctAnswer: string;
+  alternativeAnswers?: string[]; // Alternative richtige Antworten
   isCorrect: boolean;
   explanation: string;
   wikipediaUrl?: string;
   sourceName?: string; // Name der Quelle (Wikipedia, Pokewiki, etc.)
   manualOverride?: boolean;
+  imageUrl?: string; // Für Bilderfragen
 }
 
 export interface QuizResult {

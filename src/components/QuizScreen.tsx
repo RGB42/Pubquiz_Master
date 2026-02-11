@@ -143,6 +143,21 @@ export function QuizScreen({
               </span>
             </div>
 
+            {/* Image for image questions */}
+            {currentQuestion.questionType === 'image' && currentQuestion.imageUrl && (
+              <div className="mb-6 rounded-xl overflow-hidden bg-white/5 border border-white/10">
+                <img 
+                  src={currentQuestion.imageUrl} 
+                  alt={currentQuestion.imageAlt || 'Quiz image'} 
+                  className="w-full max-h-80 object-contain mx-auto"
+                  loading="lazy"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+              </div>
+            )}
+
             {/* Question */}
             <h2 className="text-2xl font-bold text-white mb-6 leading-relaxed">
               {currentQuestion.question}
