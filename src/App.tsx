@@ -153,7 +153,9 @@ export function App() {
         quizConfig.selectedCategories,
         quizConfig.questionsPerCategory,
         quizConfig.language,
-        quizConfig.difficulty
+        quizConfig.difficulty,
+        [],
+        quizConfig.apiProvider
       );
 
       if (generatedQuestions.length === 0) {
@@ -165,8 +167,11 @@ export function App() {
       setCurrentQuestionIndex(0);
       setState('playing');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
-      setRawErrorResponse((err as any)?.rawResponse);
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      const rawResponse = (err as any)?.rawResponse;
+      console.log('Error caught:', errorMessage, 'Raw response:', rawResponse);
+      setError(errorMessage);
+      setRawErrorResponse(rawResponse);
       setState('error');
     }
   }, []);
@@ -256,7 +261,7 @@ export function App() {
                 
                 setState('evaluating');
                 
-                evaluateAnswers(config.apiKey, config.model, questions, finalAnswers, config.language)
+                evaluateAnswers(config.apiKey, config.model, questions, finalAnswers, config.language, config.apiProvider)
                   .then(evaluations => {
                     const correctCount = evaluations.filter(e => e.isCorrect).length;
                     setResult({
@@ -268,8 +273,11 @@ export function App() {
                     setState('finished');
                   })
                   .catch(err => {
-                    setError(err instanceof Error ? err.message : t.evaluationError);
-                    setRawErrorResponse((err as any)?.rawResponse);
+                    const errorMessage = err instanceof Error ? err.message : t.evaluationError;
+                    const rawResponse = (err as any)?.rawResponse;
+                    console.log('Evaluation error caught:', errorMessage, 'Raw response:', rawResponse);
+                    setError(errorMessage);
+                    setRawErrorResponse(rawResponse);
                     setState('error');
                   });
               }

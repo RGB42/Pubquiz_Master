@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { QuizConfig, Language, Difficulty, CATEGORIES_DE, CATEGORIES_EN } from '../types/quiz';
+import { QuizConfig, Language, Difficulty, ApiProvider, API_PROVIDERS, CATEGORIES_DE, CATEGORIES_EN } from '../types/quiz';
 import { getArticleCount, clearUsedArticles, getUsedArticles } from '../services/articleHistory';
 
 interface SetupScreenProps {
@@ -7,9 +7,8 @@ interface SetupScreenProps {
   onBack?: () => void;
 }
 
-const DEFAULT_MODEL = 'tngtech/deepseek-r1t2-chimera:free';
-
 const STORAGE_KEYS = {
+  apiProvider: 'pubquiz_api_provider',
   apiKey: 'pubquiz_api_key',
   model: 'pubquiz_model',
   language: 'pubquiz_language',
@@ -17,7 +16,13 @@ const STORAGE_KEYS = {
   customCategories: 'pubquiz_custom_categories',
   numCategories: 'pubquiz_num_categories',
   questionsPerCategory: 'pubquiz_questions_per_category',
-  difficulty: 'pubquiz_difficulty'
+  difficulty: 'pubquiz_difficulty',
+  // Provider-spezifische Keys
+  openrouterKey: 'pubquiz_openrouter_key',
+  groqKey: 'pubquiz_groq_key',
+  nvidiaKey: 'pubquiz_nvidia_key',
+  openaiKey: 'pubquiz_openai_key',
+  anthropicKey: 'pubquiz_anthropic_key',
 };
 
 const TRANSLATIONS = {
@@ -25,14 +30,15 @@ const TRANSLATIONS = {
     title: 'PubQuiz Master',
     subtitle: 'Dein KI-gestütztes Quiz-Erlebnis',
     language: 'Sprache',
-    apiKey: 'OpenRouter API Key',
+    apiProvider: 'KI-Anbieter',
+    apiKey: 'API Key',
     apiKeyHelp: 'Wo bekomme ich einen Key?',
     apiKeyInfo1: '1. Gehe zu',
     apiKeyInfo2: '2. Erstelle einen kostenlosen Account',
-    apiKeyInfo3: '3. Generiere einen API Key unter "Keys"',
+    apiKeyInfo3: '3. Generiere einen API Key',
     model: 'KI-Modell',
-    modelHelp: 'Welche Modelle gibt es?',
-    modelInfo: 'Kostenlose Modelle (empfohlen):',
+    modelHelp: 'Verfügbare Modelle',
+    modelInfo: 'Empfohlene Modelle:',
     modelTip: '💡 Klicke auf ein Modell um es auszuwählen',
     allModels: 'Alle Modelle ansehen →',
     numCategories: 'Anzahl Kategorien',
@@ -48,7 +54,7 @@ const TRANSLATIONS = {
     add: 'Hinzufügen',
     needMore: 'Du brauchst mindestens',
     categories: 'Kategorien',
-    apiKeyRequired: 'Bitte gib deinen OpenRouter API Key ein!',
+    apiKeyRequired: 'Bitte gib deinen API Key ein!',
     modelRequired: 'Bitte gib ein Modell ein!',
     notEnoughCategories: 'Bitte wähle genug Kategorien aus!',
     difficulty: 'Schwierigkeitsgrad',
@@ -68,20 +74,23 @@ const TRANSLATIONS = {
     showHistory: 'Historie anzeigen',
     hideHistory: 'Historie ausblenden',
     noHistory: 'Es wurden noch keine Themen abgefragt.',
-    historyNote: 'Eigene Kategorien werden nicht getrackt, um Wiederholungen zu ermöglichen.'
+    historyNote: 'Eigene Kategorien werden nicht getrackt, um Wiederholungen zu ermöglichen.',
+    free: 'Kostenlos',
+    providerNote: 'Jeder Anbieter speichert seinen eigenen API Key'
   },
   en: {
     title: 'PubQuiz Master',
     subtitle: 'Your AI-powered quiz experience',
     language: 'Language',
-    apiKey: 'OpenRouter API Key',
+    apiProvider: 'AI Provider',
+    apiKey: 'API Key',
     apiKeyHelp: 'Where do I get a key?',
     apiKeyInfo1: '1. Go to',
     apiKeyInfo2: '2. Create a free account',
-    apiKeyInfo3: '3. Generate an API key under "Keys"',
+    apiKeyInfo3: '3. Generate an API key',
     model: 'AI Model',
-    modelHelp: 'Which models are available?',
-    modelInfo: 'Free models (recommended):',
+    modelHelp: 'Available models',
+    modelInfo: 'Recommended models:',
     modelTip: '💡 Click on a model to select it',
     allModels: 'View all models →',
     numCategories: 'Number of Categories',
@@ -97,7 +106,7 @@ const TRANSLATIONS = {
     add: 'Add',
     needMore: 'You need at least',
     categories: 'categories',
-    apiKeyRequired: 'Please enter your OpenRouter API Key!',
+    apiKeyRequired: 'Please enter your API Key!',
     modelRequired: 'Please enter a model!',
     notEnoughCategories: 'Please select enough categories!',
     difficulty: 'Difficulty Level',
@@ -117,16 +126,31 @@ const TRANSLATIONS = {
     showHistory: 'Show History',
     hideHistory: 'Hide History',
     noHistory: 'No topics have been asked yet.',
-    historyNote: 'Custom categories are not tracked to allow repeated use.'
+    historyNote: 'Custom categories are not tracked to allow repeated use.',
+    free: 'Free',
+    providerNote: 'Each provider stores its own API key'
   }
+};
+
+// Provider-spezifische Storage Keys
+const getProviderStorageKey = (provider: ApiProvider): string => {
+  const keys: Record<ApiProvider, string> = {
+    openrouter: STORAGE_KEYS.openrouterKey,
+    groq: STORAGE_KEYS.groqKey,
+    nvidia: STORAGE_KEYS.nvidiaKey,
+    openai: STORAGE_KEYS.openaiKey,
+    anthropic: STORAGE_KEYS.anthropicKey,
+  };
+  return keys[provider];
 };
 
 export function SetupScreen({ onStart, onBack }: SetupScreenProps) {
   const [language, setLanguage] = useState<Language>('de');
+  const [apiProvider, setApiProvider] = useState<ApiProvider>('openrouter');
   const [numCategories, setNumCategories] = useState(3);
   const [questionsPerCategory, setQuestionsPerCategory] = useState(3);
   const [apiKey, setApiKey] = useState('');
-  const [model, setModel] = useState(DEFAULT_MODEL);
+  const [model, setModel] = useState(API_PROVIDERS.openrouter.defaultModel);
   const [showApiInfo, setShowApiInfo] = useState(false);
   const [showModelInfo, setShowModelInfo] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
@@ -138,6 +162,7 @@ export function SetupScreen({ onStart, onBack }: SetupScreenProps) {
 
   const t = TRANSLATIONS[language];
   const categories = language === 'de' ? CATEGORIES_DE : CATEGORIES_EN;
+  const currentProvider = API_PROVIDERS[apiProvider];
 
   // Lade Artikelanzahl
   useEffect(() => {
@@ -146,25 +171,33 @@ export function SetupScreen({ onStart, onBack }: SetupScreenProps) {
 
   // Lade gespeicherte Werte beim Start
   useEffect(() => {
-    const savedApiKey = localStorage.getItem(STORAGE_KEYS.apiKey);
-    const savedModel = localStorage.getItem(STORAGE_KEYS.model);
     const savedLanguage = localStorage.getItem(STORAGE_KEYS.language) as Language;
+    const savedProvider = localStorage.getItem(STORAGE_KEYS.apiProvider) as ApiProvider;
     const savedSelectedCategories = localStorage.getItem(STORAGE_KEYS.selectedCategories);
     const savedCustomCategories = localStorage.getItem(STORAGE_KEYS.customCategories);
     const savedNumCategories = localStorage.getItem(STORAGE_KEYS.numCategories);
     const savedQuestionsPerCategory = localStorage.getItem(STORAGE_KEYS.questionsPerCategory);
+    const savedDifficulty = localStorage.getItem(STORAGE_KEYS.difficulty) as Difficulty;
 
-    if (savedApiKey) setApiKey(savedApiKey);
-    if (savedModel) setModel(savedModel);
     if (savedLanguage) setLanguage(savedLanguage);
+    if (savedProvider && API_PROVIDERS[savedProvider]) {
+      setApiProvider(savedProvider);
+      // Lade den API-Key für diesen Provider
+      const providerKey = localStorage.getItem(getProviderStorageKey(savedProvider));
+      if (providerKey) setApiKey(providerKey);
+      // Lade das gespeicherte Modell oder verwende das Standard-Modell
+      const savedModel = localStorage.getItem(STORAGE_KEYS.model);
+      if (savedModel) {
+        setModel(savedModel);
+      } else {
+        setModel(API_PROVIDERS[savedProvider].defaultModel);
+      }
+    }
     if (savedNumCategories) setNumCategories(parseInt(savedNumCategories));
     if (savedQuestionsPerCategory) setQuestionsPerCategory(parseInt(savedQuestionsPerCategory));
-    
-    const savedDifficulty = localStorage.getItem(STORAGE_KEYS.difficulty) as Difficulty;
     if (savedDifficulty && ['easy', 'medium', 'hard', 'mixed'].includes(savedDifficulty)) {
       setDifficulty(savedDifficulty);
     }
-    
     if (savedSelectedCategories) {
       try {
         setSelectedCategories(JSON.parse(savedSelectedCategories));
@@ -181,18 +214,31 @@ export function SetupScreen({ onStart, onBack }: SetupScreenProps) {
     }
   }, []);
 
+  // Lade API-Key wenn Provider wechselt
+  useEffect(() => {
+    const providerKey = localStorage.getItem(getProviderStorageKey(apiProvider));
+    setApiKey(providerKey || '');
+    setModel(API_PROVIDERS[apiProvider].defaultModel);
+    setShowApiInfo(false);
+    setShowModelInfo(false);
+  }, [apiProvider]);
+
   const handleLanguageChange = (lang: Language) => {
     setLanguage(lang);
     localStorage.setItem(STORAGE_KEYS.language, lang);
-    // Reset selected categories when language changes
     setSelectedCategories([]);
     localStorage.setItem(STORAGE_KEYS.selectedCategories, JSON.stringify([]));
+  };
+
+  const handleProviderChange = (provider: ApiProvider) => {
+    setApiProvider(provider);
+    localStorage.setItem(STORAGE_KEYS.apiProvider, provider);
   };
 
   const handleApiKeyChange = (value: string) => {
     setApiKey(value);
     if (value.trim()) {
-      localStorage.setItem(STORAGE_KEYS.apiKey, value.trim());
+      localStorage.setItem(getProviderStorageKey(apiProvider), value.trim());
     }
   };
 
@@ -217,7 +263,6 @@ export function SetupScreen({ onStart, onBack }: SetupScreenProps) {
       setCustomCategories(newCustom);
       localStorage.setItem(STORAGE_KEYS.customCategories, JSON.stringify(newCustom));
       
-      // Auto-select the new category
       const newSelected = [...selectedCategories, newCustomCategory.trim()];
       setSelectedCategories(newSelected);
       localStorage.setItem(STORAGE_KEYS.selectedCategories, JSON.stringify(newSelected));
@@ -231,7 +276,6 @@ export function SetupScreen({ onStart, onBack }: SetupScreenProps) {
     setCustomCategories(newCustom);
     localStorage.setItem(STORAGE_KEYS.customCategories, JSON.stringify(newCustom));
     
-    // Also remove from selected
     const newSelected = selectedCategories.filter(c => c !== category);
     setSelectedCategories(newSelected);
     localStorage.setItem(STORAGE_KEYS.selectedCategories, JSON.stringify(newSelected));
@@ -259,6 +303,7 @@ export function SetupScreen({ onStart, onBack }: SetupScreenProps) {
       questionsPerCategory,
       apiKey: apiKey.trim(),
       model: model.trim(),
+      apiProvider,
       language,
       selectedCategories: selectedCategories.slice(0, numCategories),
       customCategories,
@@ -267,6 +312,14 @@ export function SetupScreen({ onStart, onBack }: SetupScreenProps) {
   };
 
   const totalQuestions = numCategories * questionsPerCategory;
+
+  const providerTabs: { id: ApiProvider; icon: string }[] = [
+    { id: 'openrouter', icon: '🌐' },
+    { id: 'groq', icon: '⚡' },
+    { id: 'nvidia', icon: '🟢' },
+    { id: 'openai', icon: '🤖' },
+    { id: 'anthropic', icon: '🧠' },
+  ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center p-4">
@@ -310,10 +363,36 @@ export function SetupScreen({ onStart, onBack }: SetupScreenProps) {
             </button>
           </div>
 
+          {/* API Provider Tabs */}
+          <div>
+            <label className="text-white font-medium block mb-3">{t.apiProvider}</label>
+            <div className="flex flex-wrap gap-2">
+              {providerTabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => handleProviderChange(tab.id)}
+                  className={`flex-1 min-w-[100px] px-4 py-3 rounded-xl font-medium transition-all flex flex-col items-center gap-1 ${
+                    apiProvider === tab.id
+                      ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white ring-2 ring-purple-300'
+                      : 'bg-white/10 text-purple-200 hover:bg-white/20'
+                  }`}
+                >
+                  <span className="text-2xl">{tab.icon}</span>
+                  <span className="text-xs">{API_PROVIDERS[tab.id].name}</span>
+                </button>
+              ))}
+            </div>
+            <p className="text-purple-300/70 text-xs mt-2 text-center">
+              💡 {t.providerNote}
+            </p>
+          </div>
+
           {/* API Key Input */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-white font-medium">{t.apiKey}</label>
+              <label className="text-white font-medium">
+                {currentProvider.name} {t.apiKey}
+              </label>
               <button
                 onClick={() => setShowApiInfo(!showApiInfo)}
                 className="text-purple-300 hover:text-white text-sm underline"
@@ -325,12 +404,12 @@ export function SetupScreen({ onStart, onBack }: SetupScreenProps) {
               type="password"
               value={apiKey}
               onChange={(e) => handleApiKeyChange(e.target.value)}
-              placeholder="sk-or-..."
+              placeholder={`${currentProvider.keyPrefix}...`}
               className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-400"
             />
             {showApiInfo && (
               <div className="mt-2 p-3 bg-purple-800/50 rounded-lg text-sm text-purple-200">
-                <p>{t.apiKeyInfo1} <a href="https://openrouter.ai" target="_blank" rel="noopener noreferrer" className="underline text-white">openrouter.ai</a></p>
+                <p>{t.apiKeyInfo1} <a href={currentProvider.docsUrl} target="_blank" rel="noopener noreferrer" className="underline text-white">{currentProvider.docsUrl}</a></p>
                 <p>{t.apiKeyInfo2}</p>
                 <p>{t.apiKeyInfo3}</p>
               </div>
@@ -352,21 +431,31 @@ export function SetupScreen({ onStart, onBack }: SetupScreenProps) {
               type="text"
               value={model}
               onChange={(e) => handleModelChange(e.target.value)}
-              placeholder="z.B. tngtech/deepseek-r1t2-chimera:free"
+              placeholder={currentProvider.defaultModel}
               className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-400 font-mono text-sm"
             />
             {showModelInfo && (
               <div className="mt-2 p-3 bg-purple-800/50 rounded-lg text-sm text-purple-200">
                 <p className="font-bold mb-2">{t.modelInfo}</p>
                 <ul className="space-y-1 font-mono text-xs">
-                  <li className="cursor-pointer hover:text-white" onClick={() => handleModelChange('tngtech/deepseek-r1t2-chimera:free')}>• tngtech/deepseek-r1t2-chimera:free ⭐</li>
-                  <li className="cursor-pointer hover:text-white" onClick={() => handleModelChange('xiaomi/mimo-v2-flash:free')}>• xiaomi/mimo-v2-flash:free</li>
-                  <li className="cursor-pointer hover:text-white" onClick={() => handleModelChange('google/gemma-2-9b-it:free')}>• google/gemma-2-9b-it:free</li>
-                  <li className="cursor-pointer hover:text-white" onClick={() => handleModelChange('mistralai/mistral-7b-instruct:free')}>• mistralai/mistral-7b-instruct:free</li>
+                  {currentProvider.models.map((m) => (
+                    <li 
+                      key={m.id}
+                      className="cursor-pointer hover:text-white flex items-center gap-2"
+                      onClick={() => handleModelChange(m.id)}
+                    >
+                      • {m.id}
+                      {m.free && (
+                        <span className="px-1.5 py-0.5 bg-green-500/30 text-green-300 text-[10px] rounded">
+                          {t.free}
+                        </span>
+                      )}
+                    </li>
+                  ))}
                 </ul>
                 <p className="mt-2 text-purple-300">{t.modelTip}</p>
                 <p className="mt-1">
-                  <a href="https://openrouter.ai/models" target="_blank" rel="noopener noreferrer" className="underline text-white">
+                  <a href={currentProvider.docsUrl} target="_blank" rel="noopener noreferrer" className="underline text-white">
                     {t.allModels}
                   </a>
                 </p>

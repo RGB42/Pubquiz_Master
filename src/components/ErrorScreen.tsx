@@ -19,6 +19,8 @@ const TRANSLATIONS = {
     cause2: 'Netzwerkprobleme',
     cause3: 'API-Ratenlimit erreicht',
     cause4: 'Ungültige KI-Antwort',
+    cause5: 'Provider-Fehler (Modell nicht verfügbar)',
+    cause6: 'Guthaben aufgebraucht',
     forDevelopers: '🔧 Für Entwickler',
     hideDetails: 'Details ausblenden',
     rawResponse: 'Rohe KI-Antwort:',
@@ -34,6 +36,8 @@ const TRANSLATIONS = {
     cause2: 'Network issues',
     cause3: 'API rate limit reached',
     cause4: 'Invalid AI response',
+    cause5: 'Provider error (model unavailable)',
+    cause6: 'Credits exhausted',
     forDevelopers: '🔧 For Developers',
     hideDetails: 'Hide details',
     rawResponse: 'Raw AI Response:',
@@ -91,44 +95,44 @@ export function ErrorScreen({ error, rawResponse, onRetry, onBack, language }: E
             <li>• {t.cause1}</li>
             <li>• {t.cause2}</li>
             <li>• {t.cause3}</li>
+            <li>• {t.cause5}</li>
+            <li>• {t.cause6}</li>
             {rawResponse && <li>• {t.cause4}</li>}
           </ul>
         </div>
 
-        {/* Für Entwickler Button - nur anzeigen wenn rawResponse vorhanden */}
-        {rawResponse && (
-          <div className="mt-6">
-            <button
-              onClick={() => setShowRawResponse(!showRawResponse)}
-              className="px-4 py-2 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-300 text-sm rounded-lg transition-colors border border-yellow-500/30"
-            >
-              {showRawResponse ? t.hideDetails : t.forDevelopers}
-            </button>
-            
-            {showRawResponse && (
-              <div className="mt-4 text-left">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-yellow-300 text-sm font-medium">{t.rawResponse}</span>
-                  <button
-                    onClick={handleCopy}
-                    className={`px-3 py-1 text-xs rounded transition-colors ${
-                      copied 
-                        ? 'bg-green-500/30 text-green-300' 
-                        : 'bg-white/10 hover:bg-white/20 text-white'
-                    }`}
-                  >
-                    {copied ? t.copied : t.copyToClipboard}
-                  </button>
-                </div>
-                <div className="bg-black/30 rounded-xl p-4 border border-yellow-500/20 max-h-96 overflow-y-auto">
-                  <pre className="text-yellow-200/80 text-xs whitespace-pre-wrap break-words font-mono">
-                    {rawResponse}
-                  </pre>
-                </div>
+        {/* Für Entwickler Button - zeigt Details zum Fehler */}
+        <div className="mt-6">
+          <button
+            onClick={() => setShowRawResponse(!showRawResponse)}
+            className="px-4 py-2 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-300 text-sm rounded-lg transition-colors border border-yellow-500/30 font-medium"
+          >
+            {showRawResponse ? t.hideDetails : t.forDevelopers}
+          </button>
+          
+          {showRawResponse && (
+            <div className="mt-4 text-left">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-yellow-300 text-sm font-medium">{t.rawResponse}</span>
+                <button
+                  onClick={handleCopy}
+                  className={`px-3 py-1 text-xs rounded transition-colors ${
+                    copied 
+                      ? 'bg-green-500/30 text-green-300' 
+                      : 'bg-white/10 hover:bg-white/20 text-white'
+                  }`}
+                >
+                  {copied ? t.copied : t.copyToClipboard}
+                </button>
               </div>
-            )}
-          </div>
-        )}
+              <div className="bg-black/30 rounded-xl p-4 border border-yellow-500/20 max-h-96 overflow-y-auto">
+                <pre className="text-yellow-200/80 text-xs whitespace-pre-wrap break-words font-mono">
+                  {rawResponse || error}
+                </pre>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

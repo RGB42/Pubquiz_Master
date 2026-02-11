@@ -1,7 +1,7 @@
-import { Question, UserAnswer, EvaluationResult, Language, Difficulty, CATEGORIES_DE, CATEGORIES_EN } from '../types/quiz';
+import { Question, UserAnswer, EvaluationResult, Language, Difficulty, ApiProvider, API_PROVIDERS, CATEGORIES_DE, CATEGORIES_EN } from '../types/quiz';
 import { getUsedArticlesForCategory, addUsedArticles, shouldIgnoreHistory, UsedArticle } from './articleHistory';
 
-const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
+// API URLs werden jetzt aus API_PROVIDERS geladen
 
 // Bekannte Fandom-Wikis für populäre Themen
 const KNOWN_WIKIS: Record<string, { name: string; url: string; language: 'de' | 'en' | 'both' }> = {
@@ -59,6 +59,93 @@ function getWikipediaBaseUrl(language: Language): string {
     : 'https://en.wikipedia.org/wiki/';
 }
 
+// API-Aufruf-Funktion die alle Provider unterstützt
+async function callLLMApi(
+  apiKey: string,
+  model: string,
+  prompt: string,
+  provider: ApiProvider,
+  temperature: number = 0.7,
+  maxTokens: number = 2000
+): Promise<string> {
+  const providerConfig = API_PROVIDERS[provider];
+  
+  // Anthropic hat ein anderes API-Format
+  if (provider === 'anthropic') {
+    const response = await fetch(providerConfig.url, {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'Content-Type': 'application/json',
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: model,
+        max_tokens: maxTokens,
+        messages: [
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: temperature
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const errorMessage = errorData.error?.message || `API Error: ${response.status}`;
+      const error = new Error(errorMessage);
+      (error as any).rawResponse = JSON.stringify(errorData, null, 2);
+      (error as any).statusCode = response.status;
+      throw error;
+    }
+
+    const data = await response.json();
+    return data.content?.[0]?.text || '';
+  }
+  
+  // OpenAI-kompatible APIs (OpenRouter, Groq, NVIDIA, OpenAI)
+  const headers: Record<string, string> = {
+    'Authorization': `Bearer ${apiKey}`,
+    'Content-Type': 'application/json',
+  };
+  
+  // OpenRouter-spezifische Header
+  if (provider === 'openrouter') {
+    headers['HTTP-Referer'] = window.location.origin;
+    headers['X-Title'] = 'PubQuiz Master';
+  }
+  
+  const response = await fetch(providerConfig.url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      model: model,
+      messages: [
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      temperature: temperature,
+      max_tokens: maxTokens
+    })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const errorMessage = errorData.error?.message || `API Error: ${response.status}`;
+    const error = new Error(errorMessage);
+    (error as any).rawResponse = JSON.stringify(errorData, null, 2);
+    (error as any).statusCode = response.status;
+    throw error;
+  }
+
+  const data = await response.json();
+  return data.choices?.[0]?.message?.content || '';
+}
+
 export async function generateQuestions(
   apiKey: string,
   model: string,
@@ -66,7 +153,8 @@ export async function generateQuestions(
   questionsPerCategory: number,
   language: Language,
   difficulty: Difficulty = 'mixed',
-  existingQuestions: string[] = []
+  existingQuestions: string[] = [],
+  provider: ApiProvider = 'openrouter'
 ): Promise<Question[]> {
   const allQuestions: Question[] = [];
   const newUsedArticles: UsedArticle[] = [];
@@ -91,7 +179,8 @@ export async function generateQuestions(
       difficulty,
       existingQuestions,
       usedArticles,
-      ignoreHistory
+      ignoreHistory,
+      provider
     );
     
     // Sammle verwendete Artikel für das Speichern
@@ -144,7 +233,8 @@ async function generateCategoryQuestions(
   difficulty: Difficulty,
   existingQuestions: string[],
   usedArticles: string[],
-  isCustomCategory: boolean
+  isCustomCategory: boolean,
+  provider: ApiProvider = 'openrouter'
 ): Promise<Question[]> {
   // Kombiniere existierende Fragen und verwendete Artikel
   let exclusionList = '';
@@ -306,36 +396,7 @@ Respond in the following JSON format:
 }`;
 
   try {
-    const response = await fetch(OPENROUTER_API_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': window.location.origin,
-        'X-Title': 'PubQuiz Master'
-      },
-      body: JSON.stringify({
-        model: model,
-        messages: [
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        temperature: 0.8, // Etwas höher für mehr Varianz
-        max_tokens: 2000
-      })
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      const errorMessage = errorData.error?.message || `API Error: ${response.status}`;
-      
-      throw new Error(errorMessage);
-    }
-
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || '';
+    const content = await callLLMApi(apiKey, model, prompt, provider, 0.8, 2000);
     
     // Parse JSON from response
     const jsonMatch = content.match(/\{[\s\S]*\}/);
@@ -404,6 +465,12 @@ Respond in the following JSON format:
     return questions;
   } catch (error) {
     console.error('Error generating questions:', error);
+    // Sicherstellen, dass rawResponse erhalten bleibt
+    if (!(error as any)?.rawResponse && error instanceof Error) {
+      const newError = new Error(error.message);
+      (newError as any).rawResponse = (error as any).rawResponse;
+      throw newError;
+    }
     throw error;
   }
 }
@@ -444,7 +511,8 @@ export async function evaluateAnswers(
   model: string,
   questions: Question[],
   userAnswers: UserAnswer[],
-  language: Language
+  language: Language,
+  provider: ApiProvider = 'openrouter'
 ): Promise<EvaluationResult[]> {
   const results: EvaluationResult[] = [];
   
@@ -542,33 +610,7 @@ Respond in the format:
 }`;
 
   try {
-    const response = await fetch(OPENROUTER_API_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': window.location.origin,
-        'X-Title': 'PubQuiz Master'
-      },
-      body: JSON.stringify({
-        model: model,
-        messages: [
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        temperature: 0.1, // Low temperature for consistent evaluation
-        max_tokens: 2000
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`Evaluation API Error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || '';
+    const content = await callLLMApi(apiKey, model, prompt, provider, 0.1, 2000);
     
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
@@ -624,7 +666,12 @@ Respond in the format:
   } catch (error) {
     console.error('Error during evaluation:', error);
     
-    // Fallback: Simple string comparison
+    // Wenn rawResponse vorhanden ist, Fehler weiterwerfen damit Debug-Info angezeigt wird
+    if ((error as any)?.rawResponse) {
+      throw error;
+    }
+    
+    // Nur bei Netzwerk-/API-Fehlern: Fallback mit einfachem String-Vergleich
     return questions.map(q => {
       const userAnswer = userAnswers.find(a => a.questionId === q.id);
       const userText = (userAnswer?.answer || '').toLowerCase().trim();
