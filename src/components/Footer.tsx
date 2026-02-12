@@ -30,7 +30,7 @@ export function Footer({ language, showAds, onPrivacyClick, onImprintClick, onCo
     <footer className={`mt-auto ${!showAds ? 'bg-gradient-to-r from-amber-50 to-yellow-50 border-amber-200' : 'bg-white/90'} backdrop-blur-sm border-t py-3 px-4`}>
       <div className="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-2 text-sm">
         <div className="flex items-center gap-4">
-          <span className={!showAds ? 'text-amber-700 font-medium' : 'text-gray-500'}>v4.0.0</span>
+          <span className={!showAds ? 'text-amber-700 font-medium' : 'text-gray-500'}>v4.3.0</span>
           {!showAds && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gradient-to-r from-amber-400 to-yellow-500 text-black text-xs font-bold rounded-full shadow-sm">
               <span>⭐</span>

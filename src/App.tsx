@@ -8,11 +8,11 @@ import { QuizScreen } from './components/QuizScreen';
 import { ResultsScreen } from './components/ResultsScreen';
 import { ErrorScreen } from './components/ErrorScreen';
 import { CookieConsent } from './components/CookieConsent';
-// AdBanner wird nur auf der Landing Page verwendet, dort importiert
+import { BlogPage } from './components/BlogArticles';
 import { Footer } from './components/Footer';
 import { PrivacyPage, ImprintPage } from './components/LegalPages';
 
-type AppState = 'landing' | 'setup' | 'generating' | 'playing' | 'evaluating' | 'finished' | 'error';
+type AppState = 'landing' | 'blog' | 'setup' | 'generating' | 'playing' | 'evaluating' | 'finished' | 'error';
 
 const MESSAGES = {
   de: {
@@ -230,6 +230,16 @@ export function App() {
           <LandingPage
             language={language}
             onStartQuiz={() => setState('setup')}
+            onBlogClick={() => setState('blog')}
+            adsEnabled={adsEnabled && showAds}
+          />
+        );
+      
+      case 'blog':
+        return (
+          <BlogPage
+            language={language}
+            onBack={() => setState('landing')}
             adsEnabled={adsEnabled && showAds}
           />
         );
