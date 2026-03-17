@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import { Routes, Route, useNavigate, Navigate } from 'react-router-dom';
 import { QuizConfig, Question, UserAnswer, QuizResult, Language } from './types/quiz';
 import { generateQuestions, evaluateAnswers } from './services/api';
 import { LandingPage } from './components/LandingPage';
@@ -12,7 +13,7 @@ import { BlogPage } from './components/BlogArticles';
 import { Footer } from './components/Footer';
 import { PrivacyPage, ImprintPage } from './components/LegalPages';
 
-type AppState = 'landing' | 'blog' | 'setup' | 'generating' | 'playing' | 'evaluating' | 'finished' | 'error';
+type AppState = 'landing' | 'setup' | 'generating' | 'playing' | 'evaluating' | 'finished' | 'error';
 
 const MESSAGES = {
   de: {
@@ -35,6 +36,7 @@ const MESSAGES = {
 
 // Prüfen ob Werbung angezeigt werden soll basierend auf URL
 function shouldShowAds(): boolean {
+  if (typeof window === 'undefined') return true;
   const params = new URLSearchParams(window.location.search);
   
   // ?toll=true -> keine Werbung (geheimer Parameter)
@@ -48,6 +50,7 @@ function shouldShowAds(): boolean {
 
 // Cookie-Einstellungen aus localStorage laden
 function getCookieSettings(): { accepted: boolean; analytics: boolean; ads: boolean } | null {
+  if (typeof window === 'undefined') return null;
   try {
     const stored = localStorage.getItem('pubquiz_cookie_consent');
     if (stored) {
@@ -70,6 +73,7 @@ function saveCookieSettings(analytics: boolean, ads: boolean): void {
 }
 
 export function App() {
+  const navigate = useNavigate();
   const [state, setState] = useState<AppState>('landing');
   const [config, setConfig] = useState<QuizConfig | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -79,6 +83,7 @@ export function App() {
   const [error, setError] = useState<string>('');
   const [rawErrorResponse, setRawErrorResponse] = useState<string | undefined>(undefined);
   const [language, setLanguage] = useState<Language>(() => {
+    if (typeof window === 'undefined') return 'de';
     return (localStorage.getItem('pubquiz_language') as Language) || 'de';
   });
   
@@ -230,16 +235,7 @@ export function App() {
           <LandingPage
             language={language}
             onStartQuiz={() => setState('setup')}
-            onBlogClick={() => setState('blog')}
-            adsEnabled={adsEnabled && showAds}
-          />
-        );
-      
-      case 'blog':
-        return (
-          <BlogPage
-            language={language}
-            onBack={() => setState('landing')}
+            onBlogClick={() => navigate('/blog_and_tipps')}
             adsEnabled={adsEnabled && showAds}
           />
         );
@@ -359,7 +355,16 @@ export function App() {
       
       {/* Main Content */}
       <main className="flex-1">
-        {renderContent()}
+        <Routes>
+          <Route path="/" element={renderContent()} />
+          <Route path="/blog_and_tipps" element={
+            <BlogPage
+              language={language}
+              adsEnabled={adsEnabled && showAds}
+            />
+          } />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
       </main>
 
       {/* WICHTIG: Werbung wird NUR auf der Landing Page angezeigt - dort ist genug Publisher Content! */}
