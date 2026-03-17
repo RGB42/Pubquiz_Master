@@ -9,9 +9,9 @@ import { QuizScreen } from './components/QuizScreen';
 import { ResultsScreen } from './components/ResultsScreen';
 import { ErrorScreen } from './components/ErrorScreen';
 import { CookieConsent } from './components/CookieConsent';
-import { BlogPage } from './components/BlogArticles';
+import { BlogPage, BlogArticleRoute } from './components/BlogArticles';
 import { Footer } from './components/Footer';
-import { PrivacyPage, ImprintPage } from './components/LegalPages';
+import { AboutPage, ContactPage, PrivacyPageStatic, ImprintPageStatic } from './components/StaticInfoPages';
 
 type AppState = 'landing' | 'setup' | 'generating' | 'playing' | 'evaluating' | 'finished' | 'error';
 
@@ -93,10 +93,6 @@ export function App() {
   const [showCookieConsent, setShowCookieConsent] = useState<boolean>(false);
   const [adsEnabled, setAdsEnabled] = useState<boolean>(false);
   
-  // Legal Pages
-  const [showPrivacy, setShowPrivacy] = useState(false);
-  const [showImprint, setShowImprint] = useState(false);
-
   const t = MESSAGES[language];
 
   // Cookie-Consent beim Start anzeigen wenn nötig (NUR bei Werbevariante)
@@ -363,6 +359,11 @@ export function App() {
               adsEnabled={adsEnabled && showAds}
             />
           } />
+          <Route path="/blog_and_tipps/:slug" element={<BlogArticleRoute language={language} />} />
+          <Route path="/about" element={<AboutPage language={language} />} />
+          <Route path="/contact" element={<ContactPage language={language} />} />
+          <Route path="/privacy" element={<PrivacyPageStatic language={language} />} />
+          <Route path="/imprint" element={<ImprintPageStatic language={language} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
@@ -374,8 +375,6 @@ export function App() {
       <Footer
         language={language}
         showAds={showAds}
-        onPrivacyClick={() => setShowPrivacy(true)}
-        onImprintClick={() => setShowImprint(true)}
         onCookieSettingsClick={() => setShowCookieConsent(true)}
       />
 
@@ -388,13 +387,6 @@ export function App() {
         />
       )}
 
-      {/* Legal Pages */}
-      {showPrivacy && (
-        <PrivacyPage language={language} onClose={() => setShowPrivacy(false)} />
-      )}
-      {showImprint && (
-        <ImprintPage language={language} onClose={() => setShowImprint(false)} />
-      )}
     </div>
   );
 }

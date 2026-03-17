@@ -9,8 +9,32 @@ services:
         source: /blog_and_tipps
         destination: /blog_and_tipps/index.html
       - type: rewrite
-        source: /blog_and_tipps/*
-        destination: /blog_and_tipps/index.html
+        source: /blog_and_tipps/geschichte-pub-quiz
+        destination: /blog_and_tipps/geschichte-pub-quiz/index.html
+      - type: rewrite
+        source: /blog_and_tipps/tipps-quiz-meister
+        destination: /blog_and_tipps/tipps-quiz-meister/index.html
+      - type: rewrite
+        source: /blog_and_tipps/beste-quiz-kategorien
+        destination: /blog_and_tipps/beste-quiz-kategorien/index.html
+      - type: rewrite
+        source: /blog_and_tipps/ki-quiz-revolution
+        destination: /blog_and_tipps/ki-quiz-revolution/index.html
+      - type: rewrite
+        source: /blog_and_tipps/quiz-bildung-lernen
+        destination: /blog_and_tipps/quiz-bildung-lernen/index.html
+      - type: rewrite
+        source: /about
+        destination: /about/index.html
+      - type: rewrite
+        source: /contact
+        destination: /contact/index.html
+      - type: rewrite
+        source: /privacy
+        destination: /privacy/index.html
+      - type: rewrite
+        source: /imprint
+        destination: /imprint/index.html
       - type: rewrite
         source: /*
         destination: /index.html

@@ -1,10 +1,9 @@
 import { Language } from '../types/quiz';
+import { Link } from 'react-router-dom';
 
 interface FooterProps {
   language: Language;
   showAds: boolean;
-  onPrivacyClick: () => void;
-  onImprintClick: () => void;
   onCookieSettingsClick: () => void;
 }
 
@@ -12,18 +11,22 @@ const TEXTS = {
   de: {
     privacy: 'Datenschutz',
     imprint: 'Impressum',
+    about: 'Ueber uns',
+    contact: 'Kontakt',
     cookies: 'Cookie-Einstellungen',
     premium: 'Premium'
   },
   en: {
     privacy: 'Privacy Policy',
     imprint: 'Legal Notice',
+    about: 'About',
+    contact: 'Contact',
     cookies: 'Cookie Settings',
     premium: 'Premium'
   }
 };
 
-export function Footer({ language, showAds, onPrivacyClick, onImprintClick, onCookieSettingsClick }: FooterProps) {
+export function Footer({ language, showAds, onCookieSettingsClick }: FooterProps) {
   const t = TEXTS[language];
 
   return (
@@ -40,19 +43,21 @@ export function Footer({ language, showAds, onPrivacyClick, onImprintClick, onCo
         </div>
         
         <div className="flex items-center gap-4">
-          <button
-            onClick={onPrivacyClick}
-            className="text-gray-600 hover:text-indigo-600 transition-colors"
-          >
-            {t.privacy}
-          </button>
+          <Link to="/about" className="text-gray-600 hover:text-indigo-600 transition-colors">
+            {t.about}
+          </Link>
           <span className="text-gray-300">|</span>
-          <button
-            onClick={onImprintClick}
-            className="text-gray-600 hover:text-indigo-600 transition-colors"
-          >
+          <Link to="/contact" className="text-gray-600 hover:text-indigo-600 transition-colors">
+            {t.contact}
+          </Link>
+          <span className="text-gray-300">|</span>
+          <Link to="/privacy" className="text-gray-600 hover:text-indigo-600 transition-colors">
+            {t.privacy}
+          </Link>
+          <span className="text-gray-300">|</span>
+          <Link to="/imprint" className="text-gray-600 hover:text-indigo-600 transition-colors">
             {t.imprint}
-          </button>
+          </Link>
           {showAds && (
             <>
               <span className="text-gray-300">|</span>

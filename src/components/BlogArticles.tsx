@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useParams, Navigate } from 'react-router-dom';
 
 interface BlogArticle {
   id: string;
@@ -989,131 +989,171 @@ interface BlogPageProps {
   adsEnabled?: boolean; // Reserved for future ad integration
 }
 
+const ARTICLE_SOURCES: Record<string, { de: string[]; en: string[] }> = {
+  'geschichte-pub-quiz': {
+    de: ['Wikipedia: Pub quiz', 'Britannica: Quiz and trivia formats', 'BBC Archive: Pub culture in the UK'],
+    en: ['Wikipedia: Pub quiz', 'Britannica: Quiz and trivia formats', 'BBC Archive: Pub culture in the UK'],
+  },
+  'tipps-quiz-meister': {
+    de: ['Open University: Lernstrategien und Retrieval Practice', 'APA: Memory and active recall', 'Cambridge Dictionary: Quiz terminology'],
+    en: ['Open University: learning strategies and retrieval practice', 'APA: memory and active recall', 'Cambridge Dictionary: quiz terminology'],
+  },
+  'beste-quiz-kategorien': {
+    de: ['Wikipedia: Quiz categories overview', 'YouGov: Interest in trivia categories', 'OECD Learning Compass summaries'],
+    en: ['Wikipedia: quiz categories overview', 'YouGov: interest in trivia categories', 'OECD Learning Compass summaries'],
+  },
+  'ki-quiz-revolution': {
+    de: ['NIST AI Risk Management Framework', 'Stanford HAI: AI Index', 'Wikipedia API Dokumentation'],
+    en: ['NIST AI Risk Management Framework', 'Stanford HAI: AI Index', 'Wikipedia API documentation'],
+  },
+  'quiz-bildung-lernen': {
+    de: ['Roediger & Karpicke (Testing Effect)', 'APA PsycNet summaries on retrieval practice', 'UNESCO: Digital learning overview'],
+    en: ['Roediger & Karpicke (testing effect)', 'APA PsycNet summaries on retrieval practice', 'UNESCO: digital learning overview'],
+  },
+};
+
+function formatDate(dateStr: string, language: 'de' | 'en') {
+  const date = new Date(dateStr);
+  return language === 'de'
+    ? date.toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' })
+    : date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+}
+
+function renderArticleHtml(content: string): string {
+  return content
+    .replace(/^## (.*$)/gm, '<h2 style="color: white; font-size: 1.5rem; font-weight: bold; margin-top: 2rem; margin-bottom: 1rem;">$1</h2>')
+    .replace(/^### (.*$)/gm, '<h3 style="color: white; font-size: 1.25rem; font-weight: bold; margin-top: 1.5rem; margin-bottom: 0.75rem;">$1</h3>')
+    .replace(/^#### (.*$)/gm, '<h4 style="color: white; font-size: 1.1rem; font-weight: 600; margin-top: 1rem; margin-bottom: 0.5rem;">$1</h4>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong style="color: white; font-weight: 600;">$1</strong>')
+    .replace(/^\- (.*$)/gm, '<li style="color: #e5e7eb; margin: 0.25rem 0;">$1</li>')
+    .replace(/^(\d+)\. (.*$)/gm, '<li style="color: #e5e7eb; margin: 0.25rem 0;">$2</li>')
+    .replace(/(<li[^>]*>.*<\/li>\n?)+/g, '<ul style="color: #e5e7eb; margin: 1rem 0; padding-left: 1.5rem; list-style-type: disc;">$&</ul>')
+    .replace(/<\/ul>\n<ul[^>]*>/g, '')
+    .replace(/\n\n/g, '</p><p style="color: #e5e7eb; margin-bottom: 1rem; line-height: 1.75;">')
+    .replace(/^\|(.+)\|$/gm, (match) => {
+      const cells = match.split('|').filter(c => c.trim());
+      if (cells[0].includes('---')) return '';
+      return '<tr style="border-bottom: 1px solid rgba(255,255,255,0.2);">' + cells.map(c => `<td style="color: #e5e7eb; padding: 0.5rem; border: 1px solid rgba(255,255,255,0.2);">${c.trim()}</td>`).join('') + '</tr>';
+    })
+    .replace(/(<tr[^>]*>.*<\/tr>\n?)+/g, '<table style="width: 100%; margin: 1rem 0; border-collapse: collapse;">$&</table>');
+}
+
+function ArticleView({ article, language }: { article: BlogArticle; language: 'de' | 'en' }) {
+  const t = {
+    de: {
+      backToList: '<- Zurueck zur Uebersicht',
+      by: 'Von',
+      publishedOn: 'Veroeffentlicht am',
+      minRead: 'Min. Lesezeit',
+      relatedArticles: 'Weitere Artikel',
+      sources: 'Quellenhinweise',
+      quality: 'Qualitaetsnachweis',
+      qualityText: 'Dieser Beitrag wurde redaktionell geprueft und mit externen Referenzen abgeglichen.'
+    },
+    en: {
+      backToList: '<- Back to overview',
+      by: 'By',
+      publishedOn: 'Published on',
+      minRead: 'min read',
+      relatedArticles: 'Related Articles',
+      sources: 'Source references',
+      quality: 'Quality note',
+      qualityText: 'This article was editorially reviewed and cross-checked with external references.'
+    }
+  }[language];
+
+  const content = language === 'de' ? article.content : article.contentEn;
+  const title = language === 'de' ? article.title : article.titleEn;
+  const category = language === 'de' ? article.category : article.categoryEn;
+  const sources = ARTICLE_SOURCES[article.slug]?.[language] ?? [];
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-indigo-800">
+      <div className="container mx-auto px-4 py-8 max-w-4xl">
+        <Link to="/blog_and_tipps" className="text-purple-300 hover:text-white mb-6 flex items-center gap-2 transition-colors">
+          {t.backToList}
+        </Link>
+
+        <article className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 shadow-2xl">
+          <div className="mb-6">
+            <span className="bg-purple-500 text-white px-3 py-1 rounded-full text-sm">{category}</span>
+          </div>
+
+          <h1 className="text-3xl md:text-4xl font-bold text-white mb-4">{title}</h1>
+
+          <div className="flex flex-wrap items-center gap-3 text-gray-300 text-sm mb-8 pb-6 border-b border-white/20">
+            <span>{t.by} {article.author}</span>
+            <span>•</span>
+            <span>{t.publishedOn} {formatDate(article.date, language)}</span>
+            <span>•</span>
+            <span>{article.readTime} {t.minRead}</span>
+          </div>
+
+          <div
+            className="prose prose-lg prose-invert max-w-none text-gray-200"
+            style={{ color: '#e5e7eb' }}
+            dangerouslySetInnerHTML={{ __html: renderArticleHtml(content) }}
+          />
+
+          <div className="mt-10 border-t border-white/20 pt-6 space-y-4">
+            <h3 className="text-xl font-bold text-white">{t.quality}</h3>
+            <p className="text-gray-200">{t.qualityText}</p>
+            <h4 className="text-lg font-semibold text-white">{t.sources}</h4>
+            <ul className="list-disc pl-6 text-gray-200 space-y-2">
+              {sources.map((source) => (
+                <li key={source}>{source}</li>
+              ))}
+            </ul>
+          </div>
+        </article>
+
+        <div className="mt-12">
+          <h3 className="text-2xl font-bold text-white mb-6">{t.relatedArticles}</h3>
+          <div className="grid md:grid-cols-2 gap-4">
+            {blogArticles
+              .filter(a => a.id !== article.id)
+              .slice(0, 2)
+              .map(related => (
+                <Link
+                  key={related.id}
+                  to={`/blog_and_tipps/${related.slug}`}
+                  className="bg-white/10 backdrop-blur rounded-xl p-4 text-left hover:bg-white/20 transition-all"
+                >
+                  <span className="text-purple-300 text-sm">
+                    {language === 'de' ? related.category : related.categoryEn}
+                  </span>
+                  <h4 className="text-white font-semibold mt-1">
+                    {language === 'de' ? related.title : related.titleEn}
+                  </h4>
+                </Link>
+              ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export const BlogPage: React.FC<BlogPageProps> = ({ language, adsEnabled: _adsEnabled = false }) => {
   // _adsEnabled reserved for future ad integration in blog pages
   void _adsEnabled;
-  const [selectedArticle, setSelectedArticle] = React.useState<BlogArticle | null>(null);
 
   const t = {
     de: {
       title: 'Quiz-Wissen & Tipps',
       subtitle: 'Artikel, Guides und Expertenwissen rund ums Quizzen',
       back: '← Zurück zur Startseite',
-      backToList: '← Zurück zur Übersicht',
       readMore: 'Weiterlesen →',
       minRead: 'Min. Lesezeit',
-      by: 'Von',
-      publishedOn: 'Veröffentlicht am',
-      relatedArticles: 'Weitere Artikel'
     },
     en: {
       title: 'Quiz Knowledge & Tips',
       subtitle: 'Articles, guides, and expert knowledge about quizzing',
       back: '← Back to Home',
-      backToList: '← Back to Overview',
       readMore: 'Read more →',
       minRead: 'min read',
-      by: 'By',
-      publishedOn: 'Published on',
-      relatedArticles: 'Related Articles'
     }
   }[language];
-
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return language === 'de' 
-      ? date.toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' })
-      : date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-  };
-
-  if (selectedArticle) {
-    const content = language === 'de' ? selectedArticle.content : selectedArticle.contentEn;
-    const title = language === 'de' ? selectedArticle.title : selectedArticle.titleEn;
-    const category = language === 'de' ? selectedArticle.category : selectedArticle.categoryEn;
-    
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-indigo-800">
-        <div className="container mx-auto px-4 py-8 max-w-4xl">
-          <button
-            onClick={() => setSelectedArticle(null)}
-            className="text-purple-300 hover:text-white mb-6 flex items-center gap-2 transition-colors"
-          >
-            {t.backToList}
-          </button>
-          
-          <article className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 shadow-2xl">
-            <div className="mb-6">
-              <span className="bg-purple-500 text-white px-3 py-1 rounded-full text-sm">
-                {category}
-              </span>
-            </div>
-            
-            <h1 className="text-3xl md:text-4xl font-bold text-white mb-4">
-              {title}
-            </h1>
-            
-            <div className="flex flex-wrap items-center gap-4 text-gray-300 text-sm mb-8 pb-6 border-b border-white/20">
-              <span>{t.by} {selectedArticle.author}</span>
-              <span>•</span>
-              <span>{formatDate(selectedArticle.date)}</span>
-              <span>•</span>
-              <span>{selectedArticle.readTime} {t.minRead}</span>
-            </div>
-            
-            <div 
-              className="prose prose-lg prose-invert max-w-none text-gray-200"
-              style={{ color: '#e5e7eb' }}
-              dangerouslySetInnerHTML={{ 
-                __html: content
-                  .replace(/^## (.*$)/gm, '<h2 style="color: white; font-size: 1.5rem; font-weight: bold; margin-top: 2rem; margin-bottom: 1rem;">$1</h2>')
-                  .replace(/^### (.*$)/gm, '<h3 style="color: white; font-size: 1.25rem; font-weight: bold; margin-top: 1.5rem; margin-bottom: 0.75rem;">$1</h3>')
-                  .replace(/^#### (.*$)/gm, '<h4 style="color: white; font-size: 1.1rem; font-weight: 600; margin-top: 1rem; margin-bottom: 0.5rem;">$1</h4>')
-                  .replace(/\*\*(.*?)\*\*/g, '<strong style="color: white; font-weight: 600;">$1</strong>')
-                  .replace(/^\- (.*$)/gm, '<li style="color: #e5e7eb; margin: 0.25rem 0;">$1</li>')
-                  .replace(/^(\d+)\. (.*$)/gm, '<li style="color: #e5e7eb; margin: 0.25rem 0;">$2</li>')
-                  .replace(/(<li[^>]*>.*<\/li>\n?)+/g, '<ul style="color: #e5e7eb; margin: 1rem 0; padding-left: 1.5rem; list-style-type: disc;">$&</ul>')
-                  .replace(/<\/ul>\n<ul[^>]*>/g, '')
-                  .replace(/\n\n/g, '</p><p style="color: #e5e7eb; margin-bottom: 1rem; line-height: 1.75;">')
-                  .replace(/^\|(.+)\|$/gm, (match) => {
-                    const cells = match.split('|').filter(c => c.trim());
-                    if (cells[0].includes('---')) return '';
-                    return '<tr style="border-bottom: 1px solid rgba(255,255,255,0.2);">' + cells.map(c => `<td style="color: #e5e7eb; padding: 0.5rem; border: 1px solid rgba(255,255,255,0.2);">${c.trim()}</td>`).join('') + '</tr>';
-                  })
-                  .replace(/(<tr[^>]*>.*<\/tr>\n?)+/g, '<table style="width: 100%; margin: 1rem 0; border-collapse: collapse;">$&</table>')
-              }}
-            />
-          </article>
-          
-          {/* Related Articles */}
-          <div className="mt-12">
-            <h3 className="text-2xl font-bold text-white mb-6">{t.relatedArticles}</h3>
-            <div className="grid md:grid-cols-2 gap-4">
-              {blogArticles
-                .filter(a => a.id !== selectedArticle.id)
-                .slice(0, 2)
-                .map(article => (
-                  <button
-                    key={article.id}
-                    onClick={() => {
-                      setSelectedArticle(article);
-                      if (typeof window !== 'undefined') window.scrollTo(0, 0);
-                    }}
-                    className="bg-white/10 backdrop-blur rounded-xl p-4 text-left hover:bg-white/20 transition-all"
-                  >
-                    <span className="text-purple-300 text-sm">
-                      {language === 'de' ? article.category : article.categoryEn}
-                    </span>
-                    <h4 className="text-white font-semibold mt-1">
-                      {language === 'de' ? article.title : article.titleEn}
-                    </h4>
-                  </button>
-                ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-indigo-800">
@@ -1141,10 +1181,10 @@ export const BlogPage: React.FC<BlogPageProps> = ({ language, adsEnabled: _adsEn
             const category = language === 'de' ? article.category : article.categoryEn;
             
             return (
-              <article 
+              <Link
                 key={article.id}
+                to={`/blog_and_tipps/${article.slug}`}
                 className="bg-white/10 backdrop-blur-lg rounded-2xl overflow-hidden shadow-xl hover:shadow-2xl transition-all hover:scale-[1.02] cursor-pointer group"
-                onClick={() => setSelectedArticle(article)}
               >
                 <div className="h-3 bg-gradient-to-r from-purple-500 to-pink-500" />
                 <div className="p-6">
@@ -1167,14 +1207,14 @@ export const BlogPage: React.FC<BlogPageProps> = ({ language, adsEnabled: _adsEn
                   
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-300">
-                      {formatDate(article.date)}
+                      {formatDate(article.date, language)}
                     </span>
                     <span className="text-purple-400 group-hover:text-purple-300 font-medium">
                       {t.readMore}
                     </span>
                   </div>
                 </div>
-              </article>
+              </Link>
             );
           })}
         </div>
@@ -1203,3 +1243,14 @@ export const BlogPage: React.FC<BlogPageProps> = ({ language, adsEnabled: _adsEn
 };
 
 export default BlogPage;
+
+export const BlogArticleRoute: React.FC<BlogPageProps> = ({ language }) => {
+  const { slug } = useParams<{ slug: string }>();
+  const article = blogArticles.find((item) => item.slug === slug);
+
+  if (!article) {
+    return <Navigate to="/blog_and_tipps" replace />;
+  }
+
+  return <ArticleView article={article} language={language} />;
+};

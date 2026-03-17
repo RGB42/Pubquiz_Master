@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Language } from '../types/quiz';
 import { AdBanner } from './AdBanner';
@@ -477,7 +476,6 @@ With PubQuiz Master, we bring this tradition into the digital age – with AI-ge
 
 export function LandingPage({ language, onStartQuiz, onBlogClick, adsEnabled = false }: LandingPageProps) {
   const t = CONTENT[language];
-  const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900">
@@ -560,13 +558,6 @@ export function LandingPage({ language, onStartQuiz, onBlogClick, adsEnabled = f
           </div>
         </div>
       </section>
-
-      {/* Ad Banner - After Stats (Plenty of Content Above) */}
-      {adsEnabled && (
-        <div className="max-w-4xl mx-auto px-4 py-8">
-          <AdBanner adSlot="1234567890" adFormat="horizontal" className="h-24" />
-        </div>
-      )}
 
       {/* About Section */}
       <section className="py-16 px-4">
@@ -694,33 +685,21 @@ export function LandingPage({ language, onStartQuiz, onBlogClick, adsEnabled = f
         </div>
       </section>
 
-      {/* Ad Banner - Before FAQ (Plenty of Content Above) */}
-      {adsEnabled && (
-        <div className="max-w-4xl mx-auto px-4 py-8">
-          <AdBanner adSlot="1234567892" adFormat="horizontal" className="h-24" />
-        </div>
-      )}
-
       {/* FAQ Section */}
       <section className="py-16 px-4 bg-black/10">
         <div className="max-w-3xl mx-auto">
           <h2 className="text-3xl font-bold text-white mb-12 text-center">{t.faq.title}</h2>
           <div className="space-y-4">
             {t.faq.items.map((item, i) => (
-              <div key={i} className="bg-white/10 backdrop-blur-lg rounded-2xl border border-white/20 overflow-hidden">
-                <button
-                  onClick={() => setOpenFaq(openFaq === i ? null : i)}
-                  className="w-full p-6 text-left flex items-center justify-between hover:bg-white/5 transition-colors"
-                >
+              <details key={i} className="bg-white/10 backdrop-blur-lg rounded-2xl border border-white/20 overflow-hidden group" open={i === 0}>
+                <summary className="w-full p-6 text-left flex items-center justify-between hover:bg-white/5 transition-colors cursor-pointer list-none">
                   <span className="font-semibold text-white pr-4">{item.q}</span>
-                  <span className={`text-purple-300 text-2xl transition-transform ${openFaq === i ? 'rotate-45' : ''}`}>+</span>
-                </button>
-                {openFaq === i && (
-                  <div className="px-6 pb-6 text-purple-200">
-                    {item.a}
-                  </div>
-                )}
-              </div>
+                  <span className="text-purple-300 text-2xl transition-transform group-open:rotate-45">+</span>
+                </summary>
+                <div className="px-6 pb-6 text-purple-200">
+                  {item.a}
+                </div>
+              </details>
             ))}
           </div>
         </div>

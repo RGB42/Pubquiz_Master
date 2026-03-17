@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://pubquiz-master.onrender.com/sitemap.xml
