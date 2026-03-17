@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Language } from '../types/quiz';
 import { AdBanner } from './AdBanner';
 
@@ -489,12 +490,12 @@ export function LandingPage({ language, onStartQuiz, onBlogClick, adsEnabled = f
           </div>
           <div className="flex items-center gap-4">
             {onBlogClick && (
-              <button
-                onClick={onBlogClick}
+              <Link
+                to="/blog_and_tipps"
                 className="text-purple-200 hover:text-white transition-colors flex items-center gap-2"
               >
                 📚 {language === 'de' ? 'Blog & Tipps' : 'Blog & Tips'}
-              </button>
+              </Link>
             )}
             <button
               onClick={onStartQuiz}

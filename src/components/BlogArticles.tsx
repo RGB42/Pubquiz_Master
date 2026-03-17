@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 
 interface BlogArticle {
   id: string;
@@ -985,11 +986,10 @@ Quiz-based learning is scientifically proven effective. With tools like PubQuiz 
 
 interface BlogPageProps {
   language: 'de' | 'en';
-  onBack: () => void;
   adsEnabled?: boolean; // Reserved for future ad integration
 }
 
-export const BlogPage: React.FC<BlogPageProps> = ({ language, onBack, adsEnabled: _adsEnabled = false }) => {
+export const BlogPage: React.FC<BlogPageProps> = ({ language, adsEnabled: _adsEnabled = false }) => {
   // _adsEnabled reserved for future ad integration in blog pages
   void _adsEnabled;
   const [selectedArticle, setSelectedArticle] = React.useState<BlogArticle | null>(null);
@@ -1096,7 +1096,7 @@ export const BlogPage: React.FC<BlogPageProps> = ({ language, onBack, adsEnabled
                     key={article.id}
                     onClick={() => {
                       setSelectedArticle(article);
-                      window.scrollTo(0, 0);
+                      if (typeof window !== 'undefined') window.scrollTo(0, 0);
                     }}
                     className="bg-white/10 backdrop-blur rounded-xl p-4 text-left hover:bg-white/20 transition-all"
                   >
@@ -1118,12 +1118,12 @@ export const BlogPage: React.FC<BlogPageProps> = ({ language, onBack, adsEnabled
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-indigo-800">
       <div className="container mx-auto px-4 py-8 max-w-6xl">
-        <button
-          onClick={onBack}
+        <Link
+          to="/"
           className="text-purple-300 hover:text-white mb-6 flex items-center gap-2 transition-colors"
         >
           {t.back}
-        </button>
+        </Link>
 
         <div className="text-center mb-12">
           <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
